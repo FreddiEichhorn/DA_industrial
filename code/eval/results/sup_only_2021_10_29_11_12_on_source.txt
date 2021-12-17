@@ -1,0 +1,7 @@
+{'cooler': 1198, 'valve': 1309, 'pump': 1290, 'accumulator': 1148, 'n_samples': 1312}
+
+def cond(series):
+    if series[10] < 2400:
+        return False
+    else:
+        return True

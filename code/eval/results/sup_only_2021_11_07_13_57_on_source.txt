@@ -1,0 +1,69 @@
+{'cooler': 1799, 'valve': 907, 'pump': 1786, 'accumulator': 1259, 'n_samples': 1837}
+class Classifier(torch.nn.Module):
+    def __init__(self):
+        super(Classifier, self).__init__()
+        self.l1_100Hz = torch.nn.Conv1d(6, 12, kernel_size=99, stride=10)
+        self.l1_100Hz_act = torch.nn.ReLU()
+        self.l2_100Hz = torch.nn.Conv1d(12, 24, kernel_size=99, stride=10)
+
+        self.l1_10Hz = torch.nn.Conv1d(2, 4, kernel_size=25, stride=10)
+        self.l1_10Hz_act = torch.nn.ReLU()
+        self.l2_10Hz = torch.nn.Conv1d(4, 8, kernel_size=4)
+
+        self.l1_1Hz = torch.nn.Conv1d(8, 16, kernel_size=5)
+        self.l1_1Hz_act = torch.nn.ReLU()
+        self.l2_1Hz = torch.nn.Conv1d(16, 32, kernel_size=5)
+
+        self.l3_act = torch.nn.ReLU()
+        self.cooler = torch.nn.Linear(3304, 3)
+        self.cooler_softmax = torch.nn.Softmax(1)
+
+        self.valve = torch.nn.Linear(3304, 100)
+        self.valve_act = torch.nn.ReLU()
+        self.valve2 = torch.nn.Linear(100, 4)
+        self.valve_softmax = torch.nn.Softmax(1)
+
+        self.pump = torch.nn.Linear(3304, 3)
+        self.pump_softmax = torch.nn.Softmax(1)
+
+        self.accumulator = torch.nn.Linear(3304, 100)
+        self.accumulator_act = torch.nn.ReLU()
+        self.accumulator2 = torch.nn.Linear(100, 4)
+        self.accumulator_softmax = torch.nn.Softmax(1)
+
+    def forward(self, input_100Hz, input_10Hz, input_1Hz):
+        x1_100Hz = self.l1_100Hz(input_100Hz)
+        x1_100Hz_act = self.l1_100Hz_act(x1_100Hz)
+        x2_100Hz = self.l2_100Hz(x1_100Hz_act)
+        x3_100Hz = torch.flatten(x2_100Hz, 1)
+
+        x1_10Hz = self.l1_10Hz(input_10Hz)
+        x1_10Hz_act = self.l1_10Hz_act(x1_10Hz)
+        x2_10Hz = self.l2_10Hz(x1_10Hz_act)
+        x3_10Hz = torch.flatten(x2_10Hz, 1)
+
+        x1_1Hz = self.l1_1Hz(input_1Hz)
+        x1_1Hz_act = self.l1_1Hz_act(x1_1Hz)
+        x2_1Hz = self.l2_1Hz(x1_1Hz_act)
+        x3_1Hz = torch.flatten(x2_1Hz, 1)
+
+        feature_vector = torch.cat((x3_100Hz, x3_10Hz, x3_1Hz), 1)
+        feature_vector_act = self.l3_act(feature_vector)
+
+        cooler_features = self.cooler(feature_vector_act)
+        cooler_scores = self.cooler_softmax(cooler_features)
+
+        valve_features = self.valve(feature_vector_act)
+        valve_features_act = self.valve_act(valve_features)
+        valve_features2 = self.valve2(valve_features_act)
+        valve_scores = self.valve_softmax(valve_features2)
+
+        pump_features = self.pump(feature_vector_act)
+        pump_scores = self.pump_softmax(pump_features)
+
+        accumulator_features = self.accumulator(feature_vector_act)
+        accumulator_act = self.accumulator_act(accumulator_features)
+        accumulator_features2 = self.accumulator2(accumulator_act)
+        accumulator_scores = self.accumulator_softmax(accumulator_features2)
+
+        return cooler_scores, valve_scores, pump_scores, accumulator_scores

@@ -1,0 +1,14 @@
+;SA
+src_1730.mat-->src_1750.mat;1.0
+src_1730.mat-->src_1772.mat;1.0
+src_1730.mat-->src_1797.mat;0.682
+src_1750.mat-->src_1730.mat;1.0
+src_1750.mat-->src_1772.mat;0.6937
+src_1750.mat-->src_1797.mat;0.6359
+src_1772.mat-->src_1730.mat;1.0
+src_1772.mat-->src_1750.mat;1.0
+src_1772.mat-->src_1797.mat;0.8688
+src_1797.mat-->src_1730.mat;1.0
+src_1797.mat-->src_1750.mat;1.0
+src_1797.mat-->src_1772.mat;1.0
+Average;

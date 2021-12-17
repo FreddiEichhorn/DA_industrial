@@ -1,0 +1,14 @@
+,1NN,SA
+Caltech10_SURF_L10.mat-->amazon_SURF_L10.mat,0.2182,0.4085
+Caltech10_SURF_L10.mat-->webcam_SURF_L10.mat,0.139,0.2258
+Caltech10_SURF_L10.mat-->dslr_SURF_L10.mat,0.0892,0.5263
+amazon_SURF_L10.mat-->Caltech10_SURF_L10.mat,0.2431,0.3041
+amazon_SURF_L10.mat-->webcam_SURF_L10.mat,0.2407,0.2162
+amazon_SURF_L10.mat-->dslr_SURF_L10.mat,0.1847,0.25
+webcam_SURF_L10.mat-->Caltech10_SURF_L10.mat,0.2431,0.2771
+webcam_SURF_L10.mat-->amazon_SURF_L10.mat,0.2735,0.2925
+webcam_SURF_L10.mat-->dslr_SURF_L10.mat,0.5605,0.7826
+dslr_SURF_L10.mat-->Caltech10_SURF_L10.mat,0.2226,0.2635
+dslr_SURF_L10.mat-->amazon_SURF_L10.mat,0.2171,0.2517
+dslr_SURF_L10.mat-->webcam_SURF_L10.mat,0.4407,0.6
+Average,0.25603333333333333,0.366525

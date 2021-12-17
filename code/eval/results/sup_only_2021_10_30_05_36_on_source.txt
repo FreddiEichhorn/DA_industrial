@@ -1,0 +1,58 @@
+{'cooler': 1791, 'valve': 1558, 'pump': 1830, 'accumulator': 1376, 'n_samples': 1837}
+
+class Classifier(torch.nn.Module):
+    def __init__(self):
+        super(Classifier, self).__init__()
+        self.l1_100Hz = torch.nn.Conv1d(6, 3, kernel_size=99, stride=10)
+        self.l1_100Hz_act = torch.nn.ReLU()
+        self.l2_100Hz = torch.nn.Conv1d(3, 1, kernel_size=99, stride=10)
+
+        self.l1_10Hz = torch.nn.Conv1d(2, 1, kernel_size=25, stride=10)
+
+        self.l1_1Hz = torch.nn.Conv1d(8, 4, kernel_size=5)
+        self.l1_1Hz_act = torch.nn.ReLU()
+        self.l2_1Hz = torch.nn.Conv1d(4, 1, kernel_size=5)
+
+        self.l3_act = torch.nn.ReLU()
+        self.cooler = torch.nn.Linear(160, 3)
+        self.cooler_softmax = torch.nn.Softmax(2)
+
+        self.valve = torch.nn.Linear(160, 4)
+        self.valve_softmax = torch.nn.Softmax(2)
+
+        self.pump = torch.nn.Linear(160, 3)
+        self.pump_softmax = torch.nn.Softmax(2)
+
+        self.accumulator = torch.nn.Linear(160, 4)
+        self.accumulator_softmax = torch.nn.Softmax(2)
+
+    def forward(self, input_100Hz, input_10Hz, input_1Hz):
+        x1_100Hz = self.l1_100Hz(input_100Hz)
+        x1_100Hz_act = self.l1_100Hz_act(x1_100Hz)
+        x2_100Hz = self.l2_100Hz(x1_100Hz_act)
+
+        x1_10Hz = self.l1_10Hz(input_10Hz)
+
+        x1_1Hz = self.l1_1Hz(input_1Hz)
+        x1_1Hz_act = self.l1_1Hz_act(x1_1Hz)
+        x2_1Hz = self.l2_1Hz(x1_1Hz_act)
+
+        feature_vector = torch.cat((x2_100Hz, x1_10Hz, x2_1Hz), 2)
+        feature_vector_act = self.l3_act(feature_vector)
+
+        cooler_features = self.cooler(feature_vector_act)
+        cooler_scores = self.cooler_softmax(cooler_features).squeeze(1)
+
+        valve_features = self.valve(feature_vector_act)
+        valve_scores = self.valve_softmax(valve_features).squeeze(1)
+
+        pump_features = self.pump(feature_vector_act)
+        pump_scores = self.pump_softmax(pump_features).squeeze(1)
+
+        accumulator_features = self.accumulator(feature_vector_act)
+        accumulator_scores = self.accumulator_softmax(accumulator_features).squeeze(1)
+
+        return cooler_scores, valve_scores, pump_scores, accumulator_scores
+
+    def cond(series):
+        return False

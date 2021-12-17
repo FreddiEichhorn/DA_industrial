@@ -1,0 +1,1 @@
+{'cooler': 276, 'valve': 367, 'pump': 296, 'accumulator': 341, 'n_samples': 367}
