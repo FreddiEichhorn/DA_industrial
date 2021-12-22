@@ -11,164 +11,131 @@ class CWRU(Dataset):
     no domain shift is applied.
     :param normalise: whether to normalise the dataset to have values between -1 and one
     :param train: whether to return the training or evaluation split"""
-    def __init__(self, sample_length, rpm=None, normalise=True, rpms=None):
+    def __init__(self, sample_length, normalise=True, rpms=None):
         if rpms is None:
-            rpms = ['1797', '1772', '1750', '1730']
+            rpms = {'1797': '_0', '1772': '_1', '1750': '_2', '1730': '_3'}
+        else:
+            rpm_ls = rpms
+            rpms = dict()
+            if '1797' in rpm_ls:
+                rpms['1797'] = '_0'
+            if '1772' in rpm_ls:
+                rpms['1772'] = '_1'
+            if '1750' in rpm_ls:
+                rpms['1750'] = '_2'
+            if '1730' in rpm_ls:
+                rpms['1730'] = '_3'
+
         self.sample_length = sample_length
-        self.mean = torch.Tensor([0.0083, 0.0320, 0.0037]).unsqueeze(1)
-        self.variance = torch.Tensor([0.0381, 0.0231, 0.0035]).unsqueeze(1)
+        self.mean = torch.Tensor([0.0165, 0.0326, 0.0048]).unsqueeze(1)
+        #self.variance = torch.Tensor([0.0378, 0.0264, 0.0033]).unsqueeze(1)
+        self.variance = torch.Tensor([0.0881, 0.026, 0.0032]).unsqueeze(1)
         self.normalise = normalise
+        self.data = {'healthy': [],
+                     'B0_07': [],
+                     'B0_14': [],
+                     'B0_21': [],
+                     'IR0_07': [],
+                     'IR0_14': [],
+                     'IR0_21': [],
+                     'OR0_07': [],
+                     'OR0_14': [],
+                     'OR0_21': []}
+
+        self.lengths = {'healthy': 0,
+                        'B0_07': 0,
+                        'B0_14': 0,
+                        'B0_21': 0,
+                        'IR0_07': 0,
+                        'IR0_14': 0,
+                        'IR0_21': 0,
+                        'OR0_07': 0,
+                        'OR0_14': 0,
+                        'OR0_21': 0}
+
+        fault_sizes = ['07', '14', '21']
+        fault_locations = ['B0', 'IR0', 'OR0']
 
         # Load healthy data
-        self.healthy_data = []
         if '1797' in rpms:
             h = scipy.io.loadmat("../../data/CWRU/H_0.mat")
-            self.healthy_data.append(torch.Tensor([h["X097_DE_time"][:, 0], h["X097_FE_time"][:, 0],
-                                                   [0] * len(h["X097_DE_time"][:, 0])]))
+            self.data['healthy'].append(torch.Tensor([h["X097_DE_time"][:, 0], h["X097_FE_time"][:, 0],
+                                                      [0] * len(h["X097_DE_time"][:, 0])]))
+            self.lengths['healthy'] += int(self.data['healthy'][-1].shape[1] / self.sample_length)
 
-        h = scipy.io.loadmat("../../data/CWRU/H_2.mat")
         if '1772' in rpms:
-            self.healthy_data.append(torch.Tensor([h["X098_DE_time"][:, 0], h["X098_FE_time"][:, 0],
-                                                   [0] * len(h["X098_DE_time"][:, 0])]))
+            h = scipy.io.loadmat("../../data/CWRU/H_2.mat")
+            self.data['healthy'].append(torch.Tensor([h["X098_DE_time"][:, 0], h["X098_FE_time"][:, 0],
+                                                      [0] * len(h["X098_DE_time"][:, 0])]))
+            self.lengths['healthy'] += int(self.data['healthy'][-1].shape[1] / self.sample_length)
+
         if '1750' in rpms:
-            self.healthy_data.append(torch.Tensor([h["X099_DE_time"][:, 0], h["X099_FE_time"][:, 0],
-                                                   [0] * len(h["X099_DE_time"][:, 0])]))
+            h = scipy.io.loadmat("../../data/CWRU/H_2.mat")
+            self.data['healthy'].append(torch.Tensor([h["X099_DE_time"][:, 0], h["X099_FE_time"][:, 0],
+                                                      [0] * len(h["X099_DE_time"][:, 0])]))
+            self.lengths['healthy'] += int(self.data['healthy'][-1].shape[1] / self.sample_length)
 
         if '1730' in rpms:
             h = scipy.io.loadmat("../../data/CWRU/H_3.mat")
-            self.healthy_data.append(torch.Tensor([h["X100_DE_time"][:, 0], h["X100_FE_time"][:, 0],
-                                                   [0] * len(h["X100_DE_time"][:, 0])]))
+            self.data['healthy'].append(torch.Tensor([h["X100_DE_time"][:, 0], h["X100_FE_time"][:, 0],
+                                                      [0] * len(h["X100_DE_time"][:, 0])]))
+            self.lengths['healthy'] += int(self.data['healthy'][-1].shape[1] / self.sample_length)
 
-        # Load data of faulty balls
-        ball_fault_paths = {'1797': "../../data/CWRU/B_007_0.mat", '1772': "../../data/CWRU/B_007_1.mat",
-                            '1750': "../../data/CWRU/B_007_2.mat", '1730': "../../data/CWRU/B_007_3.mat"}
-
-        self.ball_fault_data = []
-        self.ball_fault_rpm = []
-
-        for rpm in rpms:
-            h = scipy.io.loadmat(ball_fault_paths[rpm])
-            self.ball_fault_data.append(torch.Tensor([h[list(h)[3]][:, 0], h[list(h)[4]][:, 0], h[list(h)[5]][:, 0]]))
-            self.ball_fault_rpm.append(h[list(h)[6]])
-
-        # Load data of faulty inner rings
-        ir_fault_paths = {'1797': "../../data/CWRU/IR_007_0.mat", '1772': "../../data/CWRU/IR_007_1.mat",
-                          '1750': "../../data/CWRU/IR_007_2.mat", '1730': "../../data/CWRU/IR_007_3.mat"}
-
-        self.ir_fault_data = []
-        self.ir_fault_rpm = []
-
-        for rpm in rpms:
-            h = scipy.io.loadmat(ir_fault_paths[rpm])
-            self.ir_fault_data.append(torch.Tensor([h[list(h)[3]][:, 0], h[list(h)[4]][:, 0], h[list(h)[5]][:, 0]]))
-            self.ir_fault_rpm.append(h[list(h)[6]])
-
-        # Load data of outer rings with faults at 6 o'clock
-        or6_fault_paths = {'1797': "../../data/CWRU/OR007@6_0.mat", '1772': "../../data/CWRU/OR007@6_1.mat",
-                           '1750': "../../data/CWRU/OR007@6_2.mat", '1730': "../../data/CWRU/OR007@6_3.mat"}
-
-        self.or6_fault_data = []
-        self.or6_fault_rpm = []
-
-        for rpm in rpms:
-            h = scipy.io.loadmat(or6_fault_paths[rpm])
-            self.or6_fault_data.append(torch.Tensor([h[list(h)[3]][:, 0], h[list(h)[4]][:, 0], h[list(h)[5]][:, 0]]))
-            self.or6_fault_rpm.append(h[list(h)[6]])
-
-        # Load data of outer rings with faults at 3 o'clock
-        or3_fault_paths = {'1797': "../../data/CWRU/OR007@3_0.mat", '1772': "../../data/CWRU/OR007@3_1.mat",
-                           '1750': "../../data/CWRU/OR007@3_2.mat", '1730': "../../data/CWRU/OR007@3_3.mat"}
-
-        self.or3_fault_data = []
-        self.or3_fault_rpm = []
-
-        for rpm in rpms:
-            h = scipy.io.loadmat(or3_fault_paths[rpm])
-            self.or3_fault_data.append(
-                torch.Tensor([h[list(h)[3]][:, 0], h[list(h)[4]][:, 0], h[list(h)[5]][:, 0]]))
-            self.or3_fault_rpm.append(h[list(h)[6]])
-
-        # Load data of outer rings with faults at 12 o'clock
-        or12_fault_paths = {'1797': "../../data/CWRU/OR007@12_0.mat", '1772': "../../data/CWRU/OR007@12_1.mat",
-                            '1750': "../../data/CWRU/OR007@12_2.mat", '1730': "../../data/CWRU/OR007@12_3.mat"}
-
-        self.or12_fault_data = []
-        self.or12_fault_rpm = []
-
-        for rpm in rpms:
-            h = scipy.io.loadmat(or12_fault_paths[rpm])
-            self.or12_fault_data.append(
-                torch.Tensor([h[list(h)[3]][:, 0], h[list(h)[4]][:, 0], h[list(h)[5]][:, 0]]))
-            self.or12_fault_rpm.append(h[list(h)[6]])
-
-        # calculate length of healthy data
-        self.healthy_length = 0
-        for healthy_data_bit in self.healthy_data:
-            self.healthy_length += healthy_data_bit.shape[1]
-
-        # calculate length of faulty ball data
-        self.ball_fault_length = 0
-        for ball_fault_data_bit in self.ball_fault_data:
-            self.ball_fault_length += ball_fault_data_bit.shape[1]
-
-        # calculate length of faulty inner ring data
-        self.ir_fault_length = 0
-        for ir_fault_data_bit in self.ir_fault_data:
-            self.ir_fault_length += ir_fault_data_bit.shape[1]
-
-        # calculate length of faulty outer ring at 6 o'clock data
-        self.or6_fault_length = 0
-        for or6_fault_data_bit in self.or6_fault_data:
-            self.or6_fault_length += or6_fault_data_bit.shape[1]
-
-        # calculate length of faulty outer ring at 3 o'clock data
-        self.or3_fault_length = 0
-        for or3_fault_data_bit in self.or3_fault_data:
-            self.or3_fault_length += or3_fault_data_bit.shape[1]
-
-        # calculate length of faulty outer ring at 12 o'clock data
-        self.or12_fault_length = 0
-        for or12_fault_data_bit in self.or12_fault_data:
-            self.or12_fault_length += or12_fault_data_bit.shape[1]
+        for fault_location in fault_locations:
+            for rpm in rpms:
+                for fault_size in fault_sizes:
+                    h = scipy.io.loadmat('../../data/CWRU/' + fault_location + fault_size + rpms[rpm])
+                    t_list = []
+                    for key in h.keys():
+                        if 'DE_time' in key:
+                            t_list.append(h[key][:, 0])
+                        if 'FE_time' in key:
+                            t_list.append(h[key][:, 0])
+                        if 'BA_time' in key:
+                            t_list.append(h[key][:, 0])
+                    self.data[fault_location + '_' + fault_size].append(torch.Tensor(t_list))
+                    self.lengths[fault_location + '_' + fault_size] += int(torch.Tensor(t_list).shape[1] /
+                                                                           self.sample_length)
 
     def __len__(self):
+
         length = 0
-        for healthy_data_bit in self.healthy_data:
-            length += int(healthy_data_bit.shape[1] / self.sample_length)
-
-        for ball_fault_data_bit in self.ball_fault_data:
-            length += int(ball_fault_data_bit.shape[1] / self.sample_length)
-
-        for ir_fault_data_bit in self.ir_fault_data:
-            length += int(ir_fault_data_bit.shape[1] / self.sample_length)
-
-        for or6_fault_data_bit in self.or6_fault_data:
-            length += int(or6_fault_data_bit.shape[1] / self.sample_length)
-
-        for or3_fault_data_bit in self.or3_fault_data:
-            length += int(or3_fault_data_bit.shape[1] / self.sample_length)
-
-        for or12_fault_data_bit in self.or12_fault_data:
-            length += int(or12_fault_data_bit.shape[1] / self.sample_length)
-
+        for class_ in self.lengths:
+            length += self.lengths[class_]
         return length
 
     def __getitem__(self, item):
-
-        series = [self.healthy_data, self.ir_fault_data, self.ball_fault_data, self.or3_fault_data, self.or6_fault_data,
-                  self.or12_fault_data]
-        gt = -1
-        # return one of healthy data
-        for ts in series:
-            gt += 1
-            for healty_ts in ts:
-                if item < healty_ts.shape[1] / self.sample_length - 1:
-                    if not self.normalise:
-                        return dict(data=healty_ts[:, item * self.sample_length:(item+1) * self.sample_length], gt=gt)
+        gt = 0
+        for key in self.data:
+            if item >= self.lengths[key]:
+                item -= self.lengths[key]
+            else:
+                for arr in self.data[key]:
+                    if item >= int(arr.shape[1] / self.sample_length):
+                        item -= int(arr.shape[1] / self.sample_length)
                     else:
-                        return dict(
-                            data=(healty_ts[:, item * self.sample_length:(item+1) * self.sample_length] - self.mean) /
-                                 self.variance,
-                            gt=gt)
-                else:
-                    item -= int(healty_ts.shape[1] / self.sample_length)
+                        if self.normalise:
+                            return {'data': (arr[:, item * self.sample_length:(item+1)*self.sample_length] - self.mean) / self.variance,
+                                    'gt': gt}
+                        else:
+                            return {'data': arr[:, item * self.sample_length:(item + 1) * self.sample_length],
+                                    'gt': gt}
+            gt += 1
+
+        return None
+
+    def find_sampling_weights(self):
+        sample_weights = []
+        for class_ in self.lengths:
+            sample_weights += [self.lengths['healthy'] / self.lengths[class_]] * self.lengths[class_]
+        return sample_weights
+
+
+def find_sampling_weights(dataset, n_classes):
+    sample_weights = []
+    lengths = [0] * n_classes
+    for sample in dataset:
+        lengths[sample['gt']] += 1
+    for class_ in range(n_classes):
+        sample_weights += [lengths[0] / lengths[class_]] * lengths[class_]
+    return sample_weights

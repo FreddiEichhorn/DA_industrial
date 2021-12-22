@@ -11,27 +11,41 @@ from sklearn.neighbors import KNeighborsClassifier
 import pandas as pd
 import datetime
 import numpy as np
+import torch
 
-#datapath = '../../data/SURF/'
-datapath = '../../data/CWRU/deep_features/'
+datapath = '../../data/SURF/'
+#datapath = '../../data/CWRU/deep_features/'
 normalize = False
 use_train_test_split = True
-#source_domains = ['Caltech10_SURF_L10.mat', 'amazon_SURF_L10.mat', 'webcam_SURF_L10.mat', 'dslr_SURF_L10.mat']
-#target_domains = ['Caltech10_SURF_L10.mat', 'amazon_SURF_L10.mat', 'webcam_SURF_L10.mat', 'dslr_SURF_L10.mat']
-source_domains = ['src_1730.mat', 'src_1750.mat', 'src_1772.mat', 'src_1797.mat']
-target_domains = ['src_1730_tgt_1750.mat', 'src_1730_tgt_1772.mat', 'src_1730_tgt_1797.mat',
-                  'src_1750_tgt_1730.mat', 'src_1750_tgt_1772.mat', 'src_1750_tgt_1797.mat',
-                  'src_1772_tgt_1730.mat', 'src_1772_tgt_1750.mat', 'src_1772_tgt_1797.mat',
-                  'src_1797_tgt_1730.mat', 'src_1797_tgt_1750.mat', 'src_1797_tgt_1772.mat']
+source_domains = ['Caltech10_SURF_L10.mat', 'amazon_SURF_L10.mat', 'webcam_SURF_L10.mat', 'dslr_SURF_L10.mat']
+target_domains = ['Caltech10_SURF_L10.mat', 'amazon_SURF_L10.mat', 'webcam_SURF_L10.mat', 'dslr_SURF_L10.mat']
+#source_domains = ['src_1730.mat', 'src_1750.mat', 'src_1772.mat', 'src_1797.mat']
+#target_domains = ['src_1730_tgt_1750.mat', 'src_1730_tgt_1772.mat', 'src_1730_tgt_1797.mat',
+#                  'src_1750_tgt_1730.mat', 'src_1750_tgt_1772.mat', 'src_1750_tgt_1797.mat',
+#                  'src_1772_tgt_1730.mat', 'src_1772_tgt_1750.mat', 'src_1772_tgt_1797.mat',
+#                  'src_1797_tgt_1730.mat', 'src_1797_tgt_1750.mat', 'src_1797_tgt_1772.mat']
 methods = {'1NN': None,
-           #'SA': SA.SA(),
-           #'PCA_src': SA.PCASource(),
+           'SA': SA.SA(),
+           'PCA_src': SA.PCASource(),
            'PCA_tgt': SA.PCATarget(),
-           #'GFK': GFK.GFK()
-           #'JGSA': JGSA.JGSA(),
-           #'MEDA': MEDA.MEDA()
+           'GFK': GFK.GFK(),
+           'JGSA': JGSA.JGSA(),
+           'MEDA': MEDA.MEDA()
            }
 results = pd.DataFrame(columns=methods.keys())
+
+
+class Classifier(torch.nn.Module):
+    def __init__(self):
+        super(Classifier, self).__init__()
+        self.layer = torch.nn.Linear(128, 10)
+        self.out = torch.nn.Softmax(2)
+
+    def forward(self, data):
+        x1 = self.layer(data)
+        output = self.out(x1)
+        return output
+
 
 for source_domain in source_domains:
     for target_domain in target_domains:
