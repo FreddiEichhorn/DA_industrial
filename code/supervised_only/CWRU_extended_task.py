@@ -184,6 +184,106 @@ class Classifier3(torch.nn.Module):
         return output
 
 
+class Classifier4(torch.nn.Module):
+    def __init__(self, sample_length):
+        super(Classifier4, self).__init__()
+        self.l1 = torch.nn.Conv1d(3, 16, 10)
+        self.l1_act = torch.nn.ReLU()
+        self.l1_pool = torch.nn.MaxPool1d(2)
+
+        self.l2 = torch.nn.Conv1d(16, 32, 5)
+        self.l2_act = torch.nn.ReLU()
+        self.l2_pool = torch.nn.MaxPool1d(2)
+
+        self.l3 = torch.nn.Conv1d(32, 64, 5)
+        self.l3_act = torch.nn.ReLU()
+
+        self.l4 = torch.nn.Conv1d(64, 64, 5, stride=2)
+        self.l4_act = torch.nn.ReLU()
+        self.l4_pool = torch.nn.MaxPool1d(2)
+
+        self.l5 = torch.nn.Conv1d(64, 128, 5, stride=2)
+        self.l5_act = torch.nn.ReLU()
+        self.l5_pool = torch.nn.MaxPool1d(2)
+
+        self.l6 = torch.nn.Linear(896, 224)
+        self.l6_act = torch.nn.ReLU()
+
+        self.l7 = torch.nn.Linear(224, 10)
+        self.out = torch.nn.Softmax(1)
+
+        self.x1_act = None
+        self.x2_act = None
+        self.x3_act = None
+        self.x4_act = None
+
+    def forward(self, data):
+        x1 = self.l1(data)
+        self.x1_act = self.l1_act(x1)
+        x1_pool = self.l1_pool(self.x1_act)  # self.l1_dropout(self.x1_act)
+
+        x2 = self.l2(x1_pool)
+        self.x2_act = self.l2_act(x2)
+        x2_pool = self.l2_pool(self.x2_act)  # self.l2_dropout(self.x2_act)
+
+        x3 = self.l3(x2_pool)
+        self.x3_act = self.l3_act(x3)
+
+        x4 = self.l4(self.x3_act)
+        self.x4_act = self.l3_act(x4)
+        x4_pool = self.l4_pool(self.x4_act)
+
+        x5 = self.l4(x4_pool)
+        self.x5_act = self.l5_act(x5)
+        x5_pool = self.l5_pool(self.x5_act)
+        x5_reshape = x5_pool.flatten(1)
+
+        x6 = self.l6(x5_reshape)
+        self.x6_act = self.l6_act(x6)
+
+        x7 = self.l7(self.x6_act)
+        output = self.out(x7)
+        return output
+
+
+class Classifier5(torch.nn.Module):
+    def __init__(self, sample_length):
+        super(Classifier5, self).__init__()
+        self.l1 = torch.nn.Conv1d(3, 8, 10)
+        self.l1_act = torch.nn.ReLU()
+        self.l1_pool = torch.nn.MaxPool1d(4)
+        self.l2 = torch.nn.Conv1d(8, 32, 5)
+        self.l2_act = torch.nn.ReLU()
+        self.l2_pool = torch.nn.MaxPool1d(8)
+
+        self.l4 = torch.nn.Conv1d(32, 128, 5, stride=2)
+        self.l4_act = torch.nn.ReLU()
+        self.l4_pool = torch.nn.MaxPool1d(3)
+        self.l6 = torch.nn.Linear(512, 10)
+        self.out = torch.nn.Softmax(1)
+
+        self.x1_act = None
+        self.x2_act = None
+        self.x3_act = None
+        self.x4_act = None
+
+    def forward(self, data):
+        x1 = self.l1(data)
+        self.x1_act = self.l1_act(x1)
+        x1_pool = self.l1_pool(self.x1_act)  # self.l1_dropout(self.x1_act)
+        x2 = self.l2(x1_pool)
+        self.x2_act = self.l2_act(x2)
+        x2_pool = self.l2_pool(self.x2_act)  # self.l2_dropout(self.x2_act)
+
+        x4 = self.l4(x2_pool)
+        self.x4_act = self.l4_act(x4)
+        x4_pool = self.l4_pool(self.x4_act)
+        x4_reshape = x4_pool.flatten(1)
+        x6 = self.l6(x4_reshape)
+        output = self.out(x6)
+        return output
+
+
 def evaluate_model(clf, loader):
     n = 0
     m = 0
@@ -227,13 +327,14 @@ if __name__ == "__main__":
                                                                                           int(0.9 * len(dataset))],
                                                                                 generator=torch.Generator().manual_seed(
                                                                                   42))
+
                 sampler = torch.utils.data.WeightedRandomSampler(find_sampling_weights(dataset_train_s, 10),
                                                                  len(dataset_train_s))
-                loader_train_s = DataLoader(dataset_train_s, batch_size=1000, shuffle=False, num_workers=1, sampler=sampler)
+                loader_train_s = DataLoader(dataset_train_s, batch_size=100, shuffle=False, num_workers=1, sampler=sampler)
                 loader_test_s = DataLoader(dataset_test_s, batch_size=1, shuffle=False, num_workers=1)
 
                 # Initialise model and optimizer
-                model = Classifier3(sample_length).to(device)
+                model = Classifier4(sample_length).to(device)
                 model.train()
                 # weight_path = "../../models/CWRU/sup_only_ext_final_" + rpm + "rpms.pt"
                 weight_path = None
@@ -247,7 +348,7 @@ if __name__ == "__main__":
                 #weight_decay = .4
                 optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
                 N = 0
-                num_epochs = 1500
+                num_epochs = 2000
 
                 for _ in range(num_epochs):
                     for sample in enumerate(loader_train_s):
@@ -258,6 +359,7 @@ if __name__ == "__main__":
                         loss.backward()
                         #print(loss)
                         optimizer.step()
+                        optimizer.zero_grad()
                         N += 1
                         # For debugging
                         if N % 50 == 0 and N != 0:
@@ -321,7 +423,7 @@ if __name__ == "__main__":
                         savemat('../../data/CWRU/deep_features/src2_' + rpm + '_tgt_' + rpm_target + '.mat',
                                 feat_dict_t)
 
-            results.to_csv('../eval/results/CWRU/' + 'sup_only3' + rpm + '_lr' + str(lr) + '_epochs' + str(num_epochs) +
+            results.to_csv('../eval/results/CWRU/' + 'sup_only4' + rpm + '_lr' + str(lr) + '_epochs' + str(num_epochs) +
                            '_weightdecay' + str(weight_decay) + '.csv', ';')
 
             fig, axarr = plt.subplots(2, 2)
@@ -333,4 +435,4 @@ if __name__ == "__main__":
             axarr[1, 0].plot(loss_plots['1750_val'])
             axarr[1, 1].plot(loss_plots['1730'])
             axarr[1, 1].plot(loss_plots['1730_val'])
-            fig.savefig('../eval/results/CWRU/' + 'sup_only3' + '_lr' + str(lr) + '_weightdecay' + str(weight_decay) + '.png')
+            fig.savefig('../eval/results/CWRU/' + 'sup_only4' + '_lr' + str(lr) + '_weightdecay' + str(weight_decay) + '.png')

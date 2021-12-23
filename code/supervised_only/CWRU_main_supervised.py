@@ -50,8 +50,8 @@ if __name__ == "__main__":
         dataloader = DataLoader(dataset, batch_size=250, shuffle=False, num_workers=1, sampler=sampler)
         model = Classifier(sample_length)
         model.train()
-        weight_path = "../../models/CWRU/sup_only_final_" + rpm + "rpms.pt"
-        # weight_path = None
+        # weight_path = "../../models/CWRU/sup_only_final_" + rpm + "rpms.pt"
+        weight_path = None
         if weight_path is not None:
             model.load_state_dict(torch.load(weight_path))
 

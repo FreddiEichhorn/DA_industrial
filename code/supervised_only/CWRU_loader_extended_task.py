@@ -53,6 +53,17 @@ class CWRU(Dataset):
                         'OR0_14': 0,
                         'OR0_21': 0}
 
+        self.gts = {'healthy': 0,
+                    'B0_07': 1,
+                    'B0_14': 2,
+                    'B0_21': 3,
+                    'IR0_07': 4,
+                    'IR0_14': 5,
+                    'IR0_21': 6,
+                    'OR0_07': 7,
+                    'OR0_14': 8,
+                    'OR0_21': 9}
+
         fault_sizes = ['07', '14', '21']
         fault_locations = ['B0', 'IR0', 'OR0']
 
@@ -105,7 +116,6 @@ class CWRU(Dataset):
         return length
 
     def __getitem__(self, item):
-        gt = 0
         for key in self.data:
             if item >= self.lengths[key]:
                 item -= self.lengths[key]
@@ -116,11 +126,10 @@ class CWRU(Dataset):
                     else:
                         if self.normalise:
                             return {'data': (arr[:, item * self.sample_length:(item+1)*self.sample_length] - self.mean) / self.variance,
-                                    'gt': gt}
+                                    'gt': self.gts[key]}
                         else:
                             return {'data': arr[:, item * self.sample_length:(item + 1) * self.sample_length],
-                                    'gt': gt}
-            gt += 1
+                                    'gt': self.gts[key]}
 
         return None
 
@@ -136,6 +145,11 @@ def find_sampling_weights(dataset, n_classes):
     lengths = [0] * n_classes
     for sample in dataset:
         lengths[sample['gt']] += 1
+
     for class_ in range(n_classes):
-        sample_weights += [lengths[0] / lengths[class_]] * lengths[class_]
+        if class_ != 0:
+            sample_weights += [1 / lengths[class_]] * lengths[class_]
+        else:
+            sample_weights += [0] * lengths[class_]
+
     return sample_weights
