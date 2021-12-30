@@ -11,7 +11,7 @@ class CWRU(Dataset):
     no domain shift is applied.
     :param normalise: whether to normalise the dataset to have values between -1 and one
     :param train: whether to return the training or evaluation split"""
-    def __init__(self, sample_length, normalise=True, rpms=None):
+    def __init__(self, sample_length, normalise=True, rpms=None, train=None):
         if rpms is None:
             rpms = {'1797': '_0', '1772': '_1', '1750': '_2', '1730': '_3'}
         else:
@@ -28,7 +28,7 @@ class CWRU(Dataset):
 
         self.sample_length = sample_length
         self.mean = torch.Tensor([0.0165, 0.0326, 0.0048]).unsqueeze(1)
-        #self.variance = torch.Tensor([0.0378, 0.0264, 0.0033]).unsqueeze(1)
+        # self.variance = torch.Tensor([0.0378, 0.0264, 0.0033]).unsqueeze(1)
         self.variance = torch.Tensor([0.0881, 0.026, 0.0032]).unsqueeze(1)
         self.normalise = normalise
         self.data = {'healthy': [],
@@ -70,26 +70,47 @@ class CWRU(Dataset):
         # Load healthy data
         if '1797' in rpms:
             h = scipy.io.loadmat("../../data/CWRU/H_0.mat")
-            self.data['healthy'].append(torch.Tensor([h["X097_DE_time"][:, 0], h["X097_FE_time"][:, 0],
-                                                      [0] * len(h["X097_DE_time"][:, 0])]))
+            h = torch.Tensor([h["X097_DE_time"][:, 0], h["X097_FE_time"][:, 0], [0] * len(h["X097_DE_time"][:, 0])])
+            if train is not None:
+                if train:
+                    choice_arr = torch.random.choice(a=[False, True], size=h.shape[1], p=[.1, 1 - .1])
+                    h = h[:, :int(0.9 * h.shape[1])]
+                else:
+                    h = h[:, int(0.9 * h.shape[1]):]
+            self.data['healthy'].append(h)
             self.lengths['healthy'] += int(self.data['healthy'][-1].shape[1] / self.sample_length)
 
         if '1772' in rpms:
             h = scipy.io.loadmat("../../data/CWRU/H_2.mat")
-            self.data['healthy'].append(torch.Tensor([h["X098_DE_time"][:, 0], h["X098_FE_time"][:, 0],
-                                                      [0] * len(h["X098_DE_time"][:, 0])]))
+            h = torch.Tensor([h["X098_DE_time"][:, 0], h["X098_FE_time"][:, 0], [0] * len(h["X098_DE_time"][:, 0])])
+            if train is not None:
+                if train:
+                    h = h[:, :int(0.9 * h.shape[1])]
+                else:
+                    h = h[:, int(0.9 * h.shape[1]):]
+            self.data['healthy'].append(h)
             self.lengths['healthy'] += int(self.data['healthy'][-1].shape[1] / self.sample_length)
 
         if '1750' in rpms:
             h = scipy.io.loadmat("../../data/CWRU/H_2.mat")
-            self.data['healthy'].append(torch.Tensor([h["X099_DE_time"][:, 0], h["X099_FE_time"][:, 0],
-                                                      [0] * len(h["X099_DE_time"][:, 0])]))
+            h = torch.Tensor([h["X099_DE_time"][:, 0], h["X099_FE_time"][:, 0], [0] * len(h["X099_DE_time"][:, 0])])
+            if train is not None:
+                if train:
+                    h = h[:, :int(0.9 * h.shape[1])]
+                else:
+                    h = h[:, int(0.9 * h.shape[1]):]
+            self.data['healthy'].append(h)
             self.lengths['healthy'] += int(self.data['healthy'][-1].shape[1] / self.sample_length)
 
         if '1730' in rpms:
             h = scipy.io.loadmat("../../data/CWRU/H_3.mat")
-            self.data['healthy'].append(torch.Tensor([h["X100_DE_time"][:, 0], h["X100_FE_time"][:, 0],
-                                                      [0] * len(h["X100_DE_time"][:, 0])]))
+            h = torch.Tensor([h["X100_DE_time"][:, 0], h["X100_FE_time"][:, 0], [0] * len(h["X100_DE_time"][:, 0])])
+            if train is not None:
+                if train:
+                    h = h[:, :int(0.9 * h.shape[1])]
+                else:
+                    h = h[:, int(0.9 * h.shape[1]):]
+            self.data['healthy'].append(h)
             self.lengths['healthy'] += int(self.data['healthy'][-1].shape[1] / self.sample_length)
 
         for fault_location in fault_locations:
@@ -99,11 +120,30 @@ class CWRU(Dataset):
                     t_list = []
                     for key in h.keys():
                         if 'DE_time' in key:
-                            t_list.append(h[key][:, 0])
+                            if train is None:
+                                t_list.append(h[key][:, 0])
+                            else:
+                                if train:
+                                    t_list.append(h[key][:, 0][:int(0.9 * len(h[key][:, 0]))])
+                                else:
+                                    t_list.append(h[key][:, 0][int(0.9 * len(h[key][:, 0])):])
                         if 'FE_time' in key:
-                            t_list.append(h[key][:, 0])
+                            if train is None:
+                                t_list.append(h[key][:, 0])
+                            else:
+                                if train:
+                                    t_list.append(h[key][:, 0][:int(0.9 * len(h[key][:, 0]))])
+                                else:
+                                    t_list.append(h[key][:, 0][int(0.9 * len(h[key][:, 0])):])
                         if 'BA_time' in key:
-                            t_list.append(h[key][:, 0])
+                            if train is None:
+                                t_list.append(h[key][:, 0])
+                            else:
+                                if train:
+                                    t_list.append(h[key][:, 0][:int(0.9 * len(h[key][:, 0]))])
+                                else:
+                                    t_list.append(h[key][:, 0][int(0.9 * len(h[key][:, 0])):])
+
                     self.data[fault_location + '_' + fault_size].append(torch.Tensor(t_list))
                     self.lengths[fault_location + '_' + fault_size] += int(torch.Tensor(t_list).shape[1] /
                                                                            self.sample_length)

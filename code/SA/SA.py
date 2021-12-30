@@ -24,7 +24,7 @@ class SA:
         fts = fts / (np.expand_dims(np.sum(fts, 1), 1) + 1e-9)
         mean = np.mean(fts, 0)
         std = np.std(fts, 0)
-        features = (fts - mean) / std
+        features = (fts - mean) / (std + 1e-9)
         return features
 
     @staticmethod
@@ -62,7 +62,7 @@ class PCASource:
         fts = fts / (np.expand_dims(np.sum(fts, 1), 1) + 1e-9)
         mean = np.mean(fts, 0)
         std = np.std(fts, 0)
-        features = (fts - mean) / std
+        features = (fts - mean) / (std + 1e-9)
         return features
 
     @staticmethod
@@ -100,7 +100,7 @@ class PCATarget:
         fts = fts / (np.expand_dims(np.sum(fts, 1), 1) + 1e-9)
         mean = np.mean(fts, 0)
         std = np.std(fts, 0)
-        features = (fts - mean) / std
+        features = (fts - mean) / (std + 1e-9)
         return features
 
     @staticmethod

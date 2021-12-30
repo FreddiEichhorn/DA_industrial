@@ -80,7 +80,7 @@ class GFK:
         fts = fts / (np.expand_dims(np.sum(fts, 1), 1) + 1e-9)
         mean = np.mean(fts, 0)
         std = np.std(fts, 0)
-        features = (fts - mean) / std
+        features = (fts - mean) / (std + 1e-9)
         return features
 
     def fit(self, features_s, labels_s, features_t):

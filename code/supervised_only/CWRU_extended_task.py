@@ -87,105 +87,106 @@ def evaluate_model(clf, loader):
 
 
 if __name__ == "__main__":
-    for weight_decay in [0.0, 0.1, 0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]:
-        print('weight_decay: ', str(weight_decay))
-        for lr in [.001, .0001, .00005, .0005, .0008, .0002]:
-            print('lr: ' + str(lr))
 
-            # Initialise output files
-            results = pd.DataFrame(columns=['1797', '1772', '1750', '1730'])
-            results = results.append(pd.DataFrame(index=['1797', '1772', '1750', '1730']))
-            loss_plots = {'1797': [], '1772': [], '1750': [], '1730': []}
+    # Initialise output files
+    results = pd.DataFrame(columns=['1797', '1772', '1750', '1730'])
+    results = results.append(pd.DataFrame(index=['1797', '1772', '1750', '1730']))
+    loss_plots = {'1797': [], '1772': [], '1750': [], '1730': []}
 
-            for rpm in ['1797', '1772', '1750', '1730']:
-                print('source rpm', str(rpm))
+    for rpm in ['1797', '1772', '1750', '1730']:
+        print('source rpm', str(rpm))
 
-                # Define what device to run on
-                if torch.cuda.is_available():
-                    device = 'cuda:0'
-                else:
-                    device = 'cpu'
+        # Define what device to run on
+        if torch.cuda.is_available():
+            device = 'cuda:0'
+        else:
+            device = 'cpu'
 
-                # Initialize source dataset and split it into training and testing subsets
-                sample_length = 1000
-                dataset = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm], normalise=True)
+        # Initialize source dataset
+        sample_length = 1000
+        dataset = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm], normalise=True, train=True)
 
-                sampler = torch.utils.data.WeightedRandomSampler(dataset.find_sampling_weights(), len(dataset))
-                loader_train_s = DataLoader(dataset, batch_size=100, shuffle=False, num_workers=1, sampler=sampler)
+        sampler = torch.utils.data.WeightedRandomSampler(dataset.find_sampling_weights(), len(dataset))
+        loader_train_s = DataLoader(dataset, batch_size=100, shuffle=False, num_workers=1, sampler=sampler)
 
-                # Initialise model and optimizer
-                model = Classifier4(sample_length).to(device)
-                model.train()
-                # weight_path = "../../models/CWRU/sup_only_ext_final_" + rpm + "rpms.pt"
-                weight_path = None
-                if weight_path is not None:
-                    model.load_state_dict(torch.load(weight_path))
+        # Initialise model and optimizer
+        model = Classifier4(sample_length).to(device)
+        model.train()
+        lr = 0.001
+        weight_decay = 0
+        #weight_path = '../../models/CWRU/sup_only4_rpm' + rpm + '_lr' + str(lr) + '_weightdecay' + str(weight_decay) + '.pth'
+        weight_path = None
+        if weight_path is not None:
+            model.load_state_dict(torch.load(weight_path))
 
-                loss_function = torch.nn.CrossEntropyLoss()
-                optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
-                N = 0
-                num_epochs = 2500
+        loss_function = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
+        N = 0
+        num_epochs = 1500
 
-                for _ in range(num_epochs):
-                    for sample in enumerate(loader_train_s):
-                        data = sample[1]["data"].to(device)
-                        gt = sample[1]["gt"].to(device)
-                        output = model.forward(data)
-                        loss = loss_function(output, gt)
-                        loss.backward()
-                        optimizer.step()
-                        optimizer.zero_grad()
-                        N += 1
-                        # For debugging
-                        if N % 50 == 0 and N != 0:
-                            print('Loss after', N, 'iterations: ', loss)
-                            loss_plots[rpm].append(loss.detach().cpu())
-                # save model weights
-                torch.save(model.state_dict(), '../../models/CWRU/sup_only4_rpm' + rpm + '_lr' + str(lr) +
-                           '_weightdecay' + str(weight_decay) + '.pth')
+        for _ in range(num_epochs):
+            for sample in enumerate(loader_train_s):
+                data = sample[1]["data"].to(device)
+                gt = sample[1]["gt"].to(device)
+                output = model.forward(data)
+                loss = loss_function(output, gt)
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+                N += 1
+                # For debugging
+                if N % 50 == 0 and N != 0:
+                    print('Loss after', N, 'iterations: ', loss)
+                    loss_plots[rpm].append(loss.detach().cpu())
+        # save model weights
+        torch.save(model.state_dict(), '../../models/CWRU/sup_only4_rpm' + rpm + '_lr' + str(lr) +
+                    '_weightdecay' + str(weight_decay) + '.pth')
 
-                # evaluate the trained model
-                for rpm_target in ['1797', '1772', '1750', '1730']:
-                    model.eval()
-                    dataset = CWRU_loader_extended_task.CWRU(1000, rpms=[rpm_target])
-                    dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=1)
-                    acc_target = round(evaluate_model(model, dataloader), 4)
-                    print('target rpm', str(rpm_target), acc_target)
-                    results[rpm][rpm_target] = acc_target
+        # evaluate the trained model
+        for rpm_target in ['1797', '1772', '1750', '1730']:
+            model.eval()
+            if rpm_target == rpm:
+                dataset = CWRU_loader_extended_task.CWRU(1000, rpms=[rpm_target], train=False)
+            else:
+                dataset = CWRU_loader_extended_task.CWRU(1000, rpms=[rpm_target])
+            dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=1)
+            acc_target = round(evaluate_model(model, dataloader), 4)
+            print('target rpm', str(rpm_target), acc_target)
+            results[rpm][rpm_target] = acc_target
 
-                    # Generate deep features of network for classical DA
-                    dataset_s = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm])
-                    dataloader_s = DataLoader(dataset_s, batch_size=len(dataset_s), shuffle=False, num_workers=1)
+            # Generate deep features of network for classical DA
+            dataset_s = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm])
+            dataloader_s = DataLoader(dataset_s, batch_size=len(dataset_s), shuffle=False, num_workers=1)
 
-                    dataset_t = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm_target])
-                    dataloader_t = DataLoader(dataset_t, batch_size=len(dataset_t), shuffle=False, num_workers=1)
-                    # Save the features
-                    with torch.no_grad():
-                        for sample in dataloader_s:  # We need all of the data in the dataset for this
-                            X_s = sample['data'].to(device)
-                            y_s = sample['gt'].to(device)
-                            model.forward(X_s)
-                            features_s = model.x5_reshape
-                            feat_dict_s = {'fts': features_s.cpu().numpy(), 'labels': y_s.unsqueeze(1).cpu().numpy()}
-                            savemat('../../data/CWRU/deep_features/src2_' + rpm + '.mat',
-                                    feat_dict_s)
+            dataset_t = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm_target])
+            dataloader_t = DataLoader(dataset_t, batch_size=len(dataset_t), shuffle=False, num_workers=1)
+            # Save the features
+            with torch.no_grad():
+                for sample in dataloader_s:  # We need all of the data in the dataset for this
+                    X_s = sample['data'].to(device)
+                    y_s = sample['gt'].to(device)
+                    model.forward(X_s)
+                    features_s = model.x5_reshape
+                    feat_dict_s = {'fts': features_s.cpu().numpy(), 'labels': y_s.unsqueeze(1).cpu().numpy()}
+                    savemat('../../data/CWRU/deep_features/src2_' + rpm + '.mat',
+                            feat_dict_s)
 
-                        for sample in dataloader_t:
-                            X_t = sample['data'].to(device)
-                            y_t = sample['gt'].to(device)
-                            model.forward(X_t)
-                            features_t = model.x5_reshape
-                            feat_dict_t = {'fts': features_t.cpu().numpy(), 'labels': y_t.unsqueeze(1).cpu().numpy()}
-                            savemat('../../data/CWRU/deep_features/src2_' + rpm + '_tgt_' + rpm_target + '.mat',
-                                    feat_dict_t)
+                for sample in dataloader_t:
+                    X_t = sample['data'].to(device)
+                    y_t = sample['gt'].to(device)
+                    model.forward(X_t)
+                    features_t = model.x5_reshape
+                    feat_dict_t = {'fts': features_t.cpu().numpy(), 'labels': y_t.unsqueeze(1).cpu().numpy()}
+                    savemat('../../data/CWRU/deep_features/src2_' + rpm + '_tgt_' + rpm_target + '.mat',
+                            feat_dict_t)
 
-            results.to_csv('../eval/results/CWRU/' + 'sup_only4' + rpm + '_lr' + str(lr) + '_epochs' + str(num_epochs) +
-                           '_weightdecay' + str(weight_decay) + '.csv', ';')
+    results.to_csv('../eval/results/CWRU/' + 'sup_only4' + rpm + '_lr' + str(lr) + '_epochs' + str(num_epochs) +
+                    '_weightdecay' + str(weight_decay) + '.csv', ';')
 
-            fig, axarr = plt.subplots(2, 2)
-            axarr[0, 0].plot(loss_plots['1797'])
-            axarr[0, 1].plot(loss_plots['1772'])
-            axarr[1, 0].plot(loss_plots['1750'])
-            axarr[1, 1].plot(loss_plots['1730'])
-            fig.savefig('../eval/results/CWRU/' + 'sup_only4' + '_lr' + str(lr) + '_weightdecay' + str(weight_decay) +
-                        '.png')
+    fig, axarr = plt.subplots(2, 2)
+    axarr[0, 0].plot(loss_plots['1797'])
+    axarr[0, 1].plot(loss_plots['1772'])
+    axarr[1, 0].plot(loss_plots['1750'])
+    axarr[1, 1].plot(loss_plots['1730'])
+    fig.savefig('../eval/results/CWRU/' + 'sup_only4' + '_lr' + str(lr) + '_weightdecay' + str(weight_decay) +
+                '.png')

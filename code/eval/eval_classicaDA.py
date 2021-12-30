@@ -15,7 +15,7 @@ import torch
 
 #datapath = '../../data/SURF/'
 datapath = '../../data/CWRU/deep_features/'
-normalize = False
+normalize = True
 use_train_test_split = True
 #source_domains = ['Caltech10_SURF_L10.mat', 'amazon_SURF_L10.mat', 'webcam_SURF_L10.mat', 'dslr_SURF_L10.mat']
 #target_domains = ['Caltech10_SURF_L10.mat', 'amazon_SURF_L10.mat', 'webcam_SURF_L10.mat', 'dslr_SURF_L10.mat']
@@ -25,12 +25,12 @@ target_domains = ['src2_1730_tgt_1750.mat', 'src2_1730_tgt_1772.mat', 'src2_1730
                   'src2_1772_tgt_1730.mat', 'src2_1772_tgt_1750.mat', 'src2_1772_tgt_1797.mat',
                   'src2_1797_tgt_1730.mat', 'src2_1797_tgt_1750.mat', 'src2_1797_tgt_1772.mat']
 methods = {'1NN': None,
-           #'SA': SA.SA(),
-           #'PCA_src': SA.PCASource(),
-           #'PCA_tgt': SA.PCATarget(),
-           #'GFK': GFK.GFK(),
-           #'JGSA': JGSA.JGSA(),
-           #'MEDA': MEDA.MEDA()
+           'SA': SA.SA(),
+           'PCA_src': SA.PCASource(),
+           'PCA_tgt': SA.PCATarget(),
+           'GFK': GFK.GFK(),
+           'JGSA': JGSA.JGSA(),
+           'MEDA': MEDA.MEDA()
            }
 results = pd.DataFrame(columns=methods.keys())
 

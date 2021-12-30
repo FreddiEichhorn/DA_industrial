@@ -47,12 +47,12 @@ class JGSA:
     @staticmethod
     def normalise_features(h):
         """Same normalization Zhang et al use in their implementation. It should be noted that the last line of this
-        method has considerable influence on the accuracy on raw features"""
+        method has considerable influence on accuracy"""
         fts = h["fts"]
         fts = fts / (np.expand_dims(np.sum(fts, 1), 1) + 1e-9)
         mean = np.mean(fts, 0)
         std = np.std(fts, 0)
-        features = (fts - mean) / std
+        features = (fts - mean) / (std + 1e-9)
         features = features / np.expand_dims(np.sqrt(np.sum(features ** 2, 1)), 1)
         return features
 
