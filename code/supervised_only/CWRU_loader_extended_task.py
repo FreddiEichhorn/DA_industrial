@@ -1,7 +1,6 @@
 import scipy.io
 import torch
 from torch.utils.data import Dataset
-import random
 
 
 class CWRU(Dataset):
@@ -71,47 +70,70 @@ class CWRU(Dataset):
         if '1797' in rpms:
             h = scipy.io.loadmat("../../data/CWRU/H_0.mat")
             h = torch.Tensor([h["X097_DE_time"][:, 0], h["X097_FE_time"][:, 0], [0] * len(h["X097_DE_time"][:, 0])])
+            h = h[:, :int(h.shape[1] / sample_length) * sample_length]
+            h = h.reshape(3, int(h.shape[1] / sample_length), sample_length)
+
             if train is not None:
                 if train:
-                    choice_arr = torch.random.choice(a=[False, True], size=h.shape[1], p=[.1, 1 - .1])
-                    h = h[:, :int(0.9 * h.shape[1])]
+                    torch.manual_seed(42)
+                    h = h[:, torch.randperm(h.shape[1])[:int(0.9 * h.shape[1])]]
                 else:
-                    h = h[:, int(0.9 * h.shape[1]):]
+                    torch.manual_seed(42)
+                    h = h[:, torch.randperm(h.shape[1])[int(0.9 * h.shape[1]):]]
+
             self.data['healthy'].append(h)
-            self.lengths['healthy'] += int(self.data['healthy'][-1].shape[1] / self.sample_length)
+            self.lengths['healthy'] += self.data['healthy'][-1].shape[1]
 
         if '1772' in rpms:
             h = scipy.io.loadmat("../../data/CWRU/H_2.mat")
             h = torch.Tensor([h["X098_DE_time"][:, 0], h["X098_FE_time"][:, 0], [0] * len(h["X098_DE_time"][:, 0])])
+            h = h[:, :int(h.shape[1] / sample_length) * sample_length]
+            h = h.reshape(3, int(h.shape[1] / sample_length), sample_length)
+
             if train is not None:
                 if train:
-                    h = h[:, :int(0.9 * h.shape[1])]
+                    torch.manual_seed(42)
+                    h = h[:, torch.randperm(h.shape[1])[:int(0.9 * h.shape[1])]]
                 else:
-                    h = h[:, int(0.9 * h.shape[1]):]
+                    torch.manual_seed(42)
+                    h = h[:, torch.randperm(h.shape[1])[int(0.9 * h.shape[1]):]]
+
             self.data['healthy'].append(h)
-            self.lengths['healthy'] += int(self.data['healthy'][-1].shape[1] / self.sample_length)
+            self.lengths['healthy'] += self.data['healthy'][-1].shape[1]
 
         if '1750' in rpms:
             h = scipy.io.loadmat("../../data/CWRU/H_2.mat")
             h = torch.Tensor([h["X099_DE_time"][:, 0], h["X099_FE_time"][:, 0], [0] * len(h["X099_DE_time"][:, 0])])
+            h = h[:, :int(h.shape[1] / sample_length) * sample_length]
+            h = h.reshape(3, int(h.shape[1] / sample_length), sample_length)
+
             if train is not None:
                 if train:
-                    h = h[:, :int(0.9 * h.shape[1])]
+                    torch.manual_seed(42)
+                    h = h[:, torch.randperm(h.shape[1])[:int(0.9 * h.shape[1])]]
                 else:
-                    h = h[:, int(0.9 * h.shape[1]):]
+                    torch.manual_seed(42)
+                    h = h[:, torch.randperm(h.shape[1])[int(0.9 * h.shape[1]):]]
+
             self.data['healthy'].append(h)
-            self.lengths['healthy'] += int(self.data['healthy'][-1].shape[1] / self.sample_length)
+            self.lengths['healthy'] += self.data['healthy'][-1].shape[1]
 
         if '1730' in rpms:
             h = scipy.io.loadmat("../../data/CWRU/H_3.mat")
             h = torch.Tensor([h["X100_DE_time"][:, 0], h["X100_FE_time"][:, 0], [0] * len(h["X100_DE_time"][:, 0])])
+            h = h[:, :int(h.shape[1] / sample_length) * sample_length]
+            h = h.reshape(3, int(h.shape[1] / sample_length), sample_length)
+
             if train is not None:
                 if train:
-                    h = h[:, :int(0.9 * h.shape[1])]
+                    torch.manual_seed(42)
+                    h = h[:, torch.randperm(h.shape[1])[:int(0.9 * h.shape[1])]]
                 else:
-                    h = h[:, int(0.9 * h.shape[1]):]
+                    torch.manual_seed(42)
+                    h = h[:, torch.randperm(h.shape[1])[int(0.9 * h.shape[1]):]]
+
             self.data['healthy'].append(h)
-            self.lengths['healthy'] += int(self.data['healthy'][-1].shape[1] / self.sample_length)
+            self.lengths['healthy'] += self.data['healthy'][-1].shape[1]
 
         for fault_location in fault_locations:
             for rpm in rpms:
@@ -120,33 +142,24 @@ class CWRU(Dataset):
                     t_list = []
                     for key in h.keys():
                         if 'DE_time' in key:
-                            if train is None:
-                                t_list.append(h[key][:, 0])
-                            else:
-                                if train:
-                                    t_list.append(h[key][:, 0][:int(0.9 * len(h[key][:, 0]))])
-                                else:
-                                    t_list.append(h[key][:, 0][int(0.9 * len(h[key][:, 0])):])
+                            t_list.append(h[key][:, 0])
                         if 'FE_time' in key:
-                            if train is None:
-                                t_list.append(h[key][:, 0])
-                            else:
-                                if train:
-                                    t_list.append(h[key][:, 0][:int(0.9 * len(h[key][:, 0]))])
-                                else:
-                                    t_list.append(h[key][:, 0][int(0.9 * len(h[key][:, 0])):])
+                            t_list.append(h[key][:, 0])
                         if 'BA_time' in key:
-                            if train is None:
-                                t_list.append(h[key][:, 0])
-                            else:
-                                if train:
-                                    t_list.append(h[key][:, 0][:int(0.9 * len(h[key][:, 0]))])
-                                else:
-                                    t_list.append(h[key][:, 0][int(0.9 * len(h[key][:, 0])):])
+                            t_list.append(h[key][:, 0])
 
+                    t_list = torch.Tensor(t_list)
+                    t_list = t_list[:, :int(t_list.shape[1] / sample_length) * sample_length]
+                    t_list = t_list.reshape(3, int(t_list.shape[1] / sample_length), sample_length)#
+                    if train is not None:
+                        if train:
+                            torch.manual_seed(42)
+                            t_list = t_list[:, torch.randperm(t_list.shape[1])[:int(0.9 * t_list.shape[1])]]
+                        else:
+                            torch.manual_seed(42)
+                            t_list = t_list[:, torch.randperm(t_list.shape[1])[int(0.9 * t_list.shape[1]):]]
                     self.data[fault_location + '_' + fault_size].append(torch.Tensor(t_list))
-                    self.lengths[fault_location + '_' + fault_size] += int(torch.Tensor(t_list).shape[1] /
-                                                                           self.sample_length)
+                    self.lengths[fault_location + '_' + fault_size] += t_list.shape[1]
 
     def __len__(self):
 
@@ -161,15 +174,14 @@ class CWRU(Dataset):
                 item -= self.lengths[key]
             else:
                 for arr in self.data[key]:
-                    if item >= int(arr.shape[1] / self.sample_length):
-                        item -= int(arr.shape[1] / self.sample_length)
+                    if item >= arr.shape[1]:
+                        item -= arr.shape[1]
                     else:
                         if self.normalise:
-                            return {'data': (arr[:, item * self.sample_length:(item+1)*self.sample_length] - self.mean) / self.variance,
+                            return {'data': (arr[:, item] - self.mean) / self.variance,
                                     'gt': self.gts[key]}
                         else:
-                            return {'data': arr[:, item * self.sample_length:(item + 1) * self.sample_length],
-                                    'gt': self.gts[key]}
+                            return {'data': arr[:, item], 'gt': self.gts[key]}
 
         return None
 
