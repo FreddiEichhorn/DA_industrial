@@ -122,7 +122,7 @@ if __name__ == "__main__":
         loss_function = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
         N = 0
-        num_epochs = 1500
+        num_epochs = 1503
 
         for _ in range(num_epochs):
             for sample in enumerate(loader_train_s):
