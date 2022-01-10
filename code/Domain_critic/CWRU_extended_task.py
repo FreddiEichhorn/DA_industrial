@@ -74,6 +74,53 @@ class Classifier4(torch.nn.Module):
         return output
 
 
+class Classifier8(torch.nn.Module):
+    def __init__(self, ss):
+        super(Classifier8, self).__init__()
+        self.l1 = torch.nn.Conv1d(3, 20, 10)
+        self.l1_act = torch.nn.ReLU()
+        self.l1_pool = torch.nn.MaxPool1d(4)
+
+        self.l2 = torch.nn.Conv1d(20, 40, 5)
+        self.l2_act = torch.nn.ReLU()
+        self.l2_pool = torch.nn.MaxPool1d(4)
+
+        self.l3 = torch.nn.Conv1d(40, 80, 5)
+        self.l3_act = torch.nn.ReLU()
+        self.l3_pool = torch.nn.MaxPool1d(8)
+
+        self.l6 = torch.nn.Linear(560, 224)
+        self.l6_act = torch.nn.ReLU()
+
+        self.l7 = torch.nn.Linear(224, 10)
+        self.out = torch.nn.Softmax(1)
+
+        self.x1_act = None
+        self.x2_act = None
+        self.x3_act = None
+        self.x4_act = None
+
+    def forward(self, data):
+        x1 = self.l1(data)
+        self.x1_act = self.l1_act(x1)
+        x1_pool = self.l1_pool(self.x1_act)  # self.l1_dropout(self.x1_act)
+
+        x2 = self.l2(x1_pool)
+        self.x2_act = self.l2_act(x2)
+        self.x2_pool = self.l2_pool(self.x2_act)  # self.l2_dropout(self.x2_act)
+
+        x3 = self.l3(self.x2_pool)
+        self.x3_act = self.l3_act(x3)
+        x3_pool = self.l3_pool(self.x3_act)
+        self.x5_reshape = x3_pool.flatten(1)
+
+        x6 = self.l6(self.x5_reshape)
+        self.x6_act = self.l6_act(x6)
+
+        x7 = self.l7(self.x6_act)
+        output = self.out(x7)
+        return output
+
 class GRL(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x):
@@ -149,6 +196,40 @@ class DomainCritic2(torch.nn.Module):
         return output
 
 
+class DomainCritic3(torch.nn.Module):
+    def __init__(self):
+        super(DomainCritic3, self).__init__()
+        self.l3 = torch.nn.Conv1d(40, 80, 5)
+        self.l3_act = torch.nn.ReLU()
+        self.l3_pool = torch.nn.MaxPool1d(8)
+
+        self.l6 = torch.nn.Linear(560, 224)
+        self.l6_act = torch.nn.ReLU()
+
+        self.l7 = torch.nn.Linear(224, 2)
+        self.out = torch.nn.Softmax(1)
+
+        self.x1_act = None
+        self.x2_act = None
+        self.x3_act = None
+        self.x4_act = None
+
+    def forward(self, data):
+        rev = GRL.apply(data)
+
+        x3 = self.l3(rev)
+        self.x3_act = self.l3_act(x3)
+        x3_pool = self.l3_pool(self.x3_act)
+        self.x5_reshape = x3_pool.flatten(1)
+
+        x6 = self.l6(self.x5_reshape)
+        self.x6_act = self.l6_act(x6)
+
+        x7 = self.l7(self.x6_act)
+        output = self.out(x7)
+        return output
+
+
 def evaluate_model(clf, loader):
     n = 0
     m = 0
@@ -173,7 +254,7 @@ if __name__ == "__main__":
     # Training hyperparameters
     lr = 0.001
     weight_decay = 0
-    num_epochs = 2501
+    num_epochs = 3000
 
     for rpm in ['1797', '1772', '1750', '1730']:
         for rpm_target in ['1797', '1772', '1750', '1730']:
@@ -203,9 +284,9 @@ if __name__ == "__main__":
                                         drop_last=True)
 
             # Initialise model and optimizer
-            model = Classifier4(sample_length).to(device)
+            model = Classifier8(sample_length).to(device)
             model.train()
-            domain_critic = DomainCritic2().to(device)
+            domain_critic = DomainCritic3().to(device)
             domain_critic.train()
             #weight_path = '../../models/CWRU/dc_rpm' + rpm + '_lr' + str(lr) + '_weightdecay' + str(weight_decay) + '.pth'
             weight_path = None
@@ -226,11 +307,11 @@ if __name__ == "__main__":
                     output = model.forward(data_s)
                     loss_classification = loss_function(output, gt)
 
-                    domain_pred_s = domain_critic.forward(model.x3_act)
+                    domain_pred_s = domain_critic.forward(model.x2_pool)
                     loss_dc_s = loss_da(domain_pred_s, torch.LongTensor([0] * domain_pred_s.shape[0]).to(device))
 
                     model.forward(data_t)
-                    domain_pred_t = domain_critic.forward(model.x3_act)
+                    domain_pred_t = domain_critic.forward(model.x2_pool)
                     loss_dc_t = loss_da(domain_pred_t, torch.LongTensor([1] * domain_pred_t.shape[0]).to(device))
                     loss = loss_dc_s + loss_dc_t + loss_classification
 

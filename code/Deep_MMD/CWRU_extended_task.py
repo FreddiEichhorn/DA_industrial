@@ -114,6 +114,21 @@ def mmd(x, y, kernel='multiscale'):
     return torch.mean(XX + YY - 2. * XY)
 
 
+def mmd2(Xs, Xt, sigma=1):
+    Z = torch.cat((Xs, Xt), 0)
+    ZZT = torch.mm(Z, Z.T)
+    diag_ZZT = torch.diag(ZZT).unsqueeze(1)
+    Z_norm_sqr = diag_ZZT.expand_as(ZZT)
+    exponent = Z_norm_sqr - 2 * ZZT + Z_norm_sqr.T
+    K = torch.exp(-exponent / (2 * sigma ** 2))
+
+    m = Xs.size(0)  # assume Xs, Xt are same shape
+    e = torch.cat((1 / m * torch.ones(m, 1), -1 / m * torch.ones(m, 1)), 0)
+    M = e * e.T
+    tmp = torch.mm(torch.mm(K.cpu(), M.cpu()), K.T.cpu())
+    loss = torch.trace(tmp).to(device)
+    return loss
+
 def evaluate_model(clf, loader):
     n = 0
     m = 0
@@ -175,7 +190,7 @@ if __name__ == "__main__":
             loss_function = torch.nn.CrossEntropyLoss()
             optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
             N = 0
-            num_epochs = 1501
+            num_epochs = 2501
 
             for epoch in range(num_epochs):
                 for sample_s, sample_t in zip(enumerate(loader_train_s), enumerate(loader_train_t)):
@@ -186,9 +201,9 @@ if __name__ == "__main__":
                     features_s = model.x5_reshape
                     model.forward(data_t)
                     loss_classification = loss_function(output, gt)
-                    if epoch > num_epochs / 3:
-                        loss_mmd = 3 * mmd(features_s, model.x5_reshape)
-                        loss = loss_classification + loss_mmd
+                    if epoch > -1:  # num_epochs / 3:
+                        loss_mmd = mmd2(features_s, model.x5_reshape)
+                        loss = loss_mmd * 100 + loss_classification
                     else:
                         loss = loss_classification
                         loss_mmd = torch.Tensor([0])

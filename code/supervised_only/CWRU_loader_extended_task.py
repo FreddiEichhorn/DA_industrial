@@ -150,7 +150,7 @@ class CWRU(Dataset):
 
                     t_list = torch.Tensor(t_list)
                     t_list = t_list[:, :int(t_list.shape[1] / sample_length) * sample_length]
-                    t_list = t_list.reshape(3, int(t_list.shape[1] / sample_length), sample_length)#
+                    t_list = t_list.reshape(3, int(t_list.shape[1] / sample_length), sample_length)
                     if train is not None:
                         if train:
                             torch.manual_seed(42)

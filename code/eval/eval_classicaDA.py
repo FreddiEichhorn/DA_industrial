@@ -13,17 +13,17 @@ import datetime
 import numpy as np
 import torch
 
-#datapath = '../../data/SURF/'
-datapath = '../../data/CWRU/deep_features/'
+datapath = '../../data/SURF/'
+#datapath = '../../data/CWRU/deep_features/'
 normalize = True
 use_train_test_split = True
-#source_domains = ['Caltech10_SURF_L10.mat', 'amazon_SURF_L10.mat', 'webcam_SURF_L10.mat', 'dslr_SURF_L10.mat']
-#target_domains = ['Caltech10_SURF_L10.mat', 'amazon_SURF_L10.mat', 'webcam_SURF_L10.mat', 'dslr_SURF_L10.mat']
-source_domains = ['src2_1730.mat', 'src2_1750.mat', 'src2_1772.mat', 'src2_1797.mat']
-target_domains = ['src2_1730_tgt_1750.mat', 'src2_1730_tgt_1772.mat', 'src2_1730_tgt_1797.mat',
-                  'src2_1750_tgt_1730.mat', 'src2_1750_tgt_1772.mat', 'src2_1750_tgt_1797.mat',
-                  'src2_1772_tgt_1730.mat', 'src2_1772_tgt_1750.mat', 'src2_1772_tgt_1797.mat',
-                  'src2_1797_tgt_1730.mat', 'src2_1797_tgt_1750.mat', 'src2_1797_tgt_1772.mat']
+source_domains = ['Caltech10_SURF_L10.mat', 'amazon_SURF_L10.mat', 'webcam_SURF_L10.mat', 'dslr_SURF_L10.mat']
+target_domains = ['Caltech10_SURF_L10.mat', 'amazon_SURF_L10.mat', 'webcam_SURF_L10.mat', 'dslr_SURF_L10.mat']
+#source_domains = ['src2_1730.mat', 'src2_1750.mat', 'src2_1772.mat', 'src2_1797.mat']
+#target_domains = ['src2_1730_tgt_1750.mat', 'src2_1730_tgt_1772.mat', 'src2_1730_tgt_1797.mat',
+#                  'src2_1750_tgt_1730.mat', 'src2_1750_tgt_1772.mat', 'src2_1750_tgt_1797.mat',
+#                  'src2_1772_tgt_1730.mat', 'src2_1772_tgt_1750.mat', 'src2_1772_tgt_1797.mat',
+#                  'src2_1797_tgt_1730.mat', 'src2_1797_tgt_1750.mat', 'src2_1797_tgt_1772.mat']
 methods = {'1NN': None,
            'SA': SA.SA(),
            'PCA_src': SA.PCASource(),
@@ -52,8 +52,8 @@ for source_domain in source_domains:
         if source_domain == target_domain:
             continue
 
-        if not source_domain.split('.')[0] in target_domain:
-            continue
+        #if not source_domain.split('.')[0] in target_domain:
+        #    continue
 
         results = results.append(pd.DataFrame(index=[source_domain + '-->' + target_domain]))
         for method_name in methods:

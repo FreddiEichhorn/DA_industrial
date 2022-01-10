@@ -140,7 +140,7 @@ class MEDA:
             n = 0
             for c in range(1, n_classes + 1):
                 e = np.zeros((n_source + n_target, 1))
-                e[np.where(ys == c)] = 1 / len(ys[np.where(ys == c)])
+                e[np.where(ys == c)] = 1 / (len(ys[np.where(ys == c)]) + 1e-9)
                 ind = np.where(cls == c)
                 inds = [item + n_source for item in ind]
                 e[tuple(inds)] = -1 / (len(cls[np.where(cls == c)]) + 1e-9)
