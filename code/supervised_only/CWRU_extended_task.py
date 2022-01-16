@@ -271,17 +271,17 @@ class Classifier9(torch.nn.Module):
         self.l1 = torch.nn.Conv1d(3, 20, 10)
         self.l1_act = torch.nn.ReLU()
         self.l1_pool = torch.nn.MaxPool1d(4)
-        self.l1_da = torch.nn.Dropout()
+        self.l1_da = torch.nn.Dropout(.1)
 
         self.l2 = torch.nn.Conv1d(20, 40, 5)
         self.l2_act = torch.nn.ReLU()
         self.l2_pool = torch.nn.MaxPool1d(4)
-        self.l2_da = torch.nn.Dropout()
+        self.l2_da = torch.nn.Dropout(.1)
 
         self.l3 = torch.nn.Conv1d(40, 80, 5)
         self.l3_act = torch.nn.ReLU()
         self.l3_pool = torch.nn.MaxPool1d(8)
-        self.l3_da = torch.nn.Dropout()
+        self.l3_da = torch.nn.Dropout(.1)
 
         self.l6 = torch.nn.Linear(560, 224)
         self.l6_act = torch.nn.ReLU()
@@ -359,10 +359,11 @@ if __name__ == "__main__":
         dataset = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm], normalise=True, train=True)
 
         sampler = torch.utils.data.WeightedRandomSampler(dataset.find_sampling_weights(), len(dataset))
-        loader_train_s = DataLoader(dataset, batch_size=20, shuffle=False, num_workers=1, sampler=sampler)
+        # loader_train_s = DataLoader(dataset, batch_size=20, shuffle=False, num_workers=1, sampler=sampler)
+        loader_train_s = CWRU_loader_extended_task.StratifiedDataLoader(dataset, 20)
 
         # Initialise model and optimizer
-        model = Classifier8(sample_length).to(device)
+        model = Classifier9(sample_length).to(device)
         model.train()
         lr = 0.001
         weight_decay = 0
@@ -374,19 +375,15 @@ if __name__ == "__main__":
         loss_function = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
         N = 0
-        num_epochs = 699
+        num_epochs = 500
 
         for _ in range(num_epochs):
             for sample in enumerate(loader_train_s):
                 data = sample[1]["data"].to(device)
                 gt = sample[1]["gt"].to(device)
                 output = model.forward(data)
-                if _ < 50:
-                    loss_class = loss_function(output, gt)
-                    loss = loss_class
-                else:
-                    loss_class = loss_function(output, gt)
-                    loss = loss_class + loss_reg(output) / 1.2
+                loss_class = loss_function(output, gt)
+                loss = loss_class + loss_reg(output)  #/ 1.5
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()

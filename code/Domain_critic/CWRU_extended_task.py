@@ -121,6 +121,61 @@ class Classifier8(torch.nn.Module):
         output = self.out(x7)
         return output
 
+
+class Classifier9(torch.nn.Module):
+    def __init__(self, ss):
+        super(Classifier9, self).__init__()
+        self.l1 = torch.nn.Conv1d(3, 20, 10)
+        self.l1_act = torch.nn.ReLU()
+        self.l1_pool = torch.nn.MaxPool1d(4)
+        self.l1_da = torch.nn.Dropout(.1)
+
+        self.l2 = torch.nn.Conv1d(20, 40, 5)
+        self.l2_act = torch.nn.ReLU()
+        self.l2_pool = torch.nn.MaxPool1d(4)
+        self.l2_da = torch.nn.Dropout(.1)
+
+        self.l3 = torch.nn.Conv1d(40, 80, 5)
+        self.l3_act = torch.nn.ReLU()
+        self.l3_pool = torch.nn.MaxPool1d(8)
+        self.l3_da = torch.nn.Dropout(.1)
+
+        self.l6 = torch.nn.Linear(560, 224)
+        self.l6_act = torch.nn.ReLU()
+
+        self.l7 = torch.nn.Linear(224, 10)
+        self.out = torch.nn.Softmax(1)
+
+        self.x1_act = None
+        self.x2_pool = None
+        self.x3_act = None
+        self.x4_act = None
+
+    def forward(self, data):
+        x1 = self.l1(data)
+        self.x1_act = self.l1_act(x1)
+        x1_pool = self.l1_pool(self.x1_act)  # self.l1_dropout(self.x1_act)
+        x1_da = self.l1_da(x1_pool)
+
+        x2 = self.l2(x1_da)
+        x2_act = self.l2_act(x2)
+        self.x2_pool = self.l2_pool(x2_act)  # self# .l2_dropout(self.x2_act)
+        x2_da = self.l2_da(self.x2_pool)
+
+        x3 = self.l3(x2_da)
+        self.x3_act = self.l3_act(x3)
+        x3_pool = self.l3_pool(self.x3_act)
+        x3_da = self.l3_da(x3_pool)
+        self.x5_reshape = x3_da.flatten(1)
+
+        x6 = self.l6(self.x5_reshape)
+        self.x6_act = self.l6_act(x6)
+
+        x7 = self.l7(self.x6_act)
+        output = self.out(x7)
+        return output
+
+
 class GRL(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x):
@@ -244,6 +299,11 @@ def evaluate_model(clf, loader):
     return n / m
 
 
+def loss_reg(output, n_classes=10):
+    ls = (output.sum(0) - output.shape[0] / n_classes)**2
+    return ls.sum(0) / n_classes
+
+
 if __name__ == "__main__":
 
     # Initialise output files
@@ -254,7 +314,8 @@ if __name__ == "__main__":
     # Training hyperparameters
     lr = 0.001
     weight_decay = 0
-    num_epochs = 3000
+    num_epochs = 1001
+    partial_da = True
 
     for rpm in ['1797', '1772', '1750', '1730']:
         for rpm_target in ['1797', '1772', '1750', '1730']:
@@ -272,19 +333,20 @@ if __name__ == "__main__":
             sample_length = 1000
             dataset_s = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm], normalise=True, train=True)
 
-            sampler = torch.utils.data.WeightedRandomSampler(dataset_s.find_sampling_weights(), len(dataset_s))
-            loader_train_s = DataLoader(dataset_s, batch_size=100, shuffle=False, num_workers=1, sampler=sampler,
-                                        drop_last=True)
+            #sampler = torch.utils.data.WeightedRandomSampler(dataset_s.find_sampling_weights(), len(dataset_s))
+            #loader_train_s = DataLoader(dataset_s, batch_size=20, shuffle=False, num_workers=1, sampler=sampler,
+            #                            drop_last=True)
+            loader_train_s = CWRU_loader_extended_task.StratifiedDataLoader(dataset_s, 20)
 
             # Initialise target training dataset
-            dataset_t = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm_target], normalise=True, train=True)
+            dataset_t = CWRU_loader_extended_task.CWRU(sample_length, True, partial_da, [rpm_target], train=True)
 
             sampler = torch.utils.data.WeightedRandomSampler(dataset_t.find_sampling_weights(), len(dataset_t))
-            loader_train_t = DataLoader(dataset_t, batch_size=100, shuffle=False, num_workers=1, sampler=sampler,
+            loader_train_t = DataLoader(dataset_t, batch_size=20, shuffle=False, num_workers=1, sampler=sampler,
                                         drop_last=True)
 
             # Initialise model and optimizer
-            model = Classifier8(sample_length).to(device)
+            model = Classifier9(sample_length).to(device)
             model.train()
             domain_critic = DomainCritic3().to(device)
             domain_critic.train()
@@ -304,16 +366,19 @@ if __name__ == "__main__":
                     data_s = sample_s[1]["data"].to(device)
                     gt = sample_s[1]["gt"].to(device)
                     data_t = sample_t[1]["data"].to(device)
-                    output = model.forward(data_s)
-                    loss_classification = loss_function(output, gt)
+                    output_s = model.forward(data_s)
+                    loss_classification = loss_function(output_s, gt)
 
                     domain_pred_s = domain_critic.forward(model.x2_pool)
                     loss_dc_s = loss_da(domain_pred_s, torch.LongTensor([0] * domain_pred_s.shape[0]).to(device))
 
-                    model.forward(data_t)
+                    output_t = model.forward(data_t)
                     domain_pred_t = domain_critic.forward(model.x2_pool)
                     loss_dc_t = loss_da(domain_pred_t, torch.LongTensor([1] * domain_pred_t.shape[0]).to(device))
-                    loss = loss_dc_s + loss_dc_t + loss_classification
+
+                    # the last term should be omitted if we are unsure whether the target data is balanced
+                    loss = loss_dc_s + loss_dc_t + loss_classification + loss_reg(output_s, 10) / 3
+                           #loss_reg(output_t, 10) / 3
 
                     loss.backward()
                     optimizer.step()
@@ -326,7 +391,7 @@ if __name__ == "__main__":
 
             # save model weights
             torch.save(model.state_dict(), '../../models/CWRU/dc_rpm' + rpm + '_lr' + str(lr) + '_weightdecay' +
-                       str(weight_decay) + '.pth')
+                       str(weight_decay) + '_partial' * partial_da + '.pth')
 
             # evaluate the trained model
             model.eval()
