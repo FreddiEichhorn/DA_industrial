@@ -345,6 +345,13 @@ if __name__ == "__main__":
     results = results.append(pd.DataFrame(index=['1797', '1772', '1750', '1730']))
     loss_plots = {'1797': [], '1772': [], '1750': [], '1730': []}
 
+    # model hyperparameters
+    lr = 0.001
+    weight_decay = 0
+    num_epochs = 500
+    stratify = False
+    regularize = False
+
     for rpm in ['1797', '1772', '1750', '1730']:
         print('source rpm', str(rpm))
 
@@ -357,25 +364,24 @@ if __name__ == "__main__":
         # Initialize source dataset
         sample_length = 1000
         dataset = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm], normalise=True, train=True)
-
         sampler = torch.utils.data.WeightedRandomSampler(dataset.find_sampling_weights(), len(dataset))
-        # loader_train_s = DataLoader(dataset, batch_size=20, shuffle=False, num_workers=1, sampler=sampler)
-        loader_train_s = CWRU_loader_extended_task.StratifiedDataLoader(dataset, 20)
+
+        if not stratify:
+            loader_train_s = DataLoader(dataset, batch_size=20, shuffle=False, num_workers=1, sampler=sampler)
+        else:
+            loader_train_s = CWRU_loader_extended_task.StratifiedDataLoader(dataset, 20)
 
         # Initialise model and optimizer
         model = Classifier9(sample_length).to(device)
         model.train()
-        lr = 0.001
-        weight_decay = 0
         #weight_path = '../../models/CWRU/sup_only4_rpm' + rpm + '_lr' + str(lr) + '_weightdecay' + str(weight_decay) + '.pth'
         weight_path = None
         if weight_path is not None:
             model.load_state_dict(torch.load(weight_path))
 
-        loss_function = torch.nn.CrossEntropyLoss()
+        loss_function = torch.nn.CrossEntropyLoss(label_smoothing=0.9)
         optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
         N = 0
-        num_epochs = 500
 
         for _ in range(num_epochs):
             for sample in enumerate(loader_train_s):
@@ -383,7 +389,10 @@ if __name__ == "__main__":
                 gt = sample[1]["gt"].to(device)
                 output = model.forward(data)
                 loss_class = loss_function(output, gt)
-                loss = loss_class + loss_reg(output)  #/ 1.5
+                if regularize:
+                    loss = loss_class + loss_reg(output)  #/ 1.5
+                else:
+                    loss = loss_class
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
@@ -435,12 +444,12 @@ if __name__ == "__main__":
                             feat_dict_t)
 
     results.to_csv('../eval/results/CWRU/' + 'sup_only4' + rpm + '_lr' + str(lr) + '_epochs' + str(num_epochs) +
-                    '_weightdecay' + str(weight_decay) + '.csv', ';')
+                    '_weightdecay' + str(weight_decay) + '_strat' * stratify + '_reg' * regularize + '.csv', ';')
 
     fig, axarr = plt.subplots(2, 2)
     axarr[0, 0].plot(loss_plots['1797'])
     axarr[0, 1].plot(loss_plots['1772'])
     axarr[1, 0].plot(loss_plots['1750'])
     axarr[1, 1].plot(loss_plots['1730'])
-    fig.savefig('../eval/results/CWRU/' + 'sup_only4' + '_lr' + str(lr) + '_weightdecay' + str(weight_decay) +
-                '.png')
+    fig.savefig('../eval/results/CWRU/' + 'sup_only4' + rpm + '_lr' + str(lr) + '_epochs' + str(num_epochs) +
+                    '_weightdecay' + str(weight_decay) + '_strat' * stratify + '_reg' * regularize + '.png')

@@ -315,7 +315,7 @@ if __name__ == "__main__":
     lr = 0.001
     weight_decay = 0
     num_epochs = 1001
-    partial_da = True
+    partial_da = False  # model wont learn when True
 
     for rpm in ['1797', '1772', '1750', '1730']:
         for rpm_target in ['1797', '1772', '1750', '1730']:
@@ -378,7 +378,6 @@ if __name__ == "__main__":
 
                     # the last term should be omitted if we are unsure whether the target data is balanced
                     loss = loss_dc_s + loss_dc_t + loss_classification + loss_reg(output_s, 10) / 3
-                           #loss_reg(output_t, 10) / 3
 
                     loss.backward()
                     optimizer.step()
