@@ -299,6 +299,28 @@ def evaluate_model(clf, loader):
     return n / m
 
 
+class ConditionalDomainCritic:
+    def __init__(self, clf, n_classes):
+        self.clf_list = []
+        self.n_classes = n_classes
+        for _ in range(n_classes):
+            self.clf_list.append(clf().to(device).train())
+        self.loss = torch.nn.CrossEntropyLoss(reduction='none')
+
+    def forward(self, data, domain_label, class_prediction):
+        out = torch.Tensor([0] * data.shape[0]).to(device)
+        for i in range(self.n_classes):
+            domain_pred = self.clf_list[i].forward(data)
+            out = out + self.loss(domain_pred, domain_label) * class_prediction[:, i].detach()
+        return torch.sum(out) / data.shape[0]
+
+    def parameters(self):
+        out = []
+        for clf in self.clf_list:
+            out = out + list(clf.parameters())
+        return out
+
+
 def loss_reg(output, n_classes=10):
     ls = (output.sum(0) - output.shape[0] / n_classes)**2
     return ls.sum(0) / n_classes
@@ -314,7 +336,7 @@ if __name__ == "__main__":
     # Training hyperparameters
     lr = 0.001
     weight_decay = 0
-    num_epochs = 1002
+    num_epochs = 400
     partial_da = False  # model wont learn when True
 
     for rpm in ['1797', '1772', '1750', '1730']:
@@ -348,17 +370,14 @@ if __name__ == "__main__":
             # Initialise model and optimizer
             model = Classifier9(sample_length).to(device)
             model.train()
-            domain_critic = DomainCritic3().to(device)
-            domain_critic.train()
+            domain_critic = ConditionalDomainCritic(DomainCritic3, 10)
             #weight_path = '../../models/CWRU/dc_rpm' + rpm + '_lr' + str(lr) + '_weightdecay' + str(weight_decay) + '.pth'
             weight_path = None
             if weight_path is not None:
                 model.load_state_dict(torch.load(weight_path))
 
             loss_function = torch.nn.CrossEntropyLoss()
-            loss_da = torch.nn.CrossEntropyLoss(reduction='none')
-            optimizer = torch.optim.SGD(list(model.parameters()) + list(domain_critic.parameters()), lr=lr,
-                                        weight_decay=weight_decay)
+            optimizer = torch.optim.SGD(list(model.parameters()) + domain_critic.parameters(), lr=lr)
             N = 0
 
             for epoch in range(num_epochs):
@@ -369,12 +388,12 @@ if __name__ == "__main__":
                     output_s = model.forward(data_s)
                     loss_classification = loss_function(output_s, gt)
 
-                    domain_pred_s = domain_critic.forward(model.x2_pool)
-                    loss_dc_s = loss_da(domain_pred_s, torch.LongTensor([0] * domain_pred_s.shape[0]).to(device)).sum() / 20
+                    loss_dc_s = domain_critic.forward(model.x2_pool, torch.LongTensor([0] * data_s.shape[0]).to(device),
+                                                      output_s)
 
                     output_t = model.forward(data_t)
-                    domain_pred_t = domain_critic.forward(model.x2_pool)
-                    loss_dc_t = loss_da(domain_pred_t, torch.LongTensor([1] * domain_pred_t.shape[0]).to(device)).sum() / 20
+                    loss_dc_t = domain_critic.forward(model.x2_pool, torch.LongTensor([1] * data_s.shape[0]).to(device),
+                                                      output_t)
 
                     # the last term should be omitted if we are unsure whether the target data is balanced
                     loss = loss_dc_s + loss_dc_t + loss_classification + loss_reg(output_s, 10) / 3
@@ -404,5 +423,5 @@ if __name__ == "__main__":
                 print('evaluation rpm', str(rpm_eval), acc_target)
                 results[rpm + '->' + rpm_target][rpm_eval] = acc_target
 
-    results.to_csv('../eval/results/CWRU/' + 'dc' + rpm + '_lr' + str(lr) + '_epochs' + str(num_epochs) +
+    results.to_csv('../eval/results/CWRU/' + 'cdc' + rpm + '_lr' + str(lr) + '_epochs' + str(num_epochs) +
                    '_weightdecay' + str(weight_decay) + '.csv', ';')
