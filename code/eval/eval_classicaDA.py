@@ -101,4 +101,4 @@ for source_domain in source_domains:
 results = results.append(pd.DataFrame(index=['Average']))
 results[[False] * (len(results)-1) + [True]] = results.mean(0)
 
-results.to_csv('results/eval_classicalDA_' + datetime.datetime.now().strftime("%Y_%m_%d_%H_%M") + '.csv', sep=';')
+results.to_csv('../eval/results/chemical.csv', sep=';')

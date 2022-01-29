@@ -349,8 +349,8 @@ if __name__ == "__main__":
     lr = 0.001
     weight_decay = 0
     num_epochs = 500
-    stratify = False
-    regularize = False
+    stratify = True
+    weight_reg = 2
 
     for rpm in ['1797', '1772', '1750', '1730']:
         print('source rpm', str(rpm))
@@ -379,7 +379,7 @@ if __name__ == "__main__":
         if weight_path is not None:
             model.load_state_dict(torch.load(weight_path))
 
-        loss_function = torch.nn.CrossEntropyLoss(label_smoothing=0.9)
+        loss_function = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
         N = 0
 
@@ -389,10 +389,9 @@ if __name__ == "__main__":
                 gt = sample[1]["gt"].to(device)
                 output = model.forward(data)
                 loss_class = loss_function(output, gt)
-                if regularize:
-                    loss = loss_class + loss_reg(output)  #/ 1.5
-                else:
-                    loss = loss_class
+
+                loss = loss_class + loss_reg(output) * weight_reg
+
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
@@ -444,7 +443,7 @@ if __name__ == "__main__":
                             feat_dict_t)
 
     results.to_csv('../eval/results/CWRU/' + 'sup_only4' + rpm + '_lr' + str(lr) + '_epochs' + str(num_epochs) +
-                    '_weightdecay' + str(weight_decay) + '_strat' * stratify + '_reg' * regularize + '.csv', ';')
+                    '_weightdecay' + str(weight_decay) + '_strat' * stratify + '_reg' + str(weight_reg) + '.csv', ';')
 
     fig, axarr = plt.subplots(2, 2)
     axarr[0, 0].plot(loss_plots['1797'])
@@ -452,4 +451,4 @@ if __name__ == "__main__":
     axarr[1, 0].plot(loss_plots['1750'])
     axarr[1, 1].plot(loss_plots['1730'])
     fig.savefig('../eval/results/CWRU/' + 'sup_only4' + rpm + '_lr' + str(lr) + '_epochs' + str(num_epochs) +
-                    '_weightdecay' + str(weight_decay) + '_strat' * stratify + '_reg' * regularize + '.png')
+                    '_weightdecay' + str(weight_decay) + '_strat' * stratify + '_reg' + str(weight_reg) + '.png')

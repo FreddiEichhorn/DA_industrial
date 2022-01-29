@@ -10,7 +10,7 @@ from sklearn.neighbors import KNeighborsClassifier
 
 
 class JGSA:
-    def __init__(self, options=None):
+    def __init__(self, clf=None, options=None):
         if options is None:
             options = {}
 
@@ -40,7 +40,7 @@ class JGSA:
         else:
             self.n_iterations = 2
 
-        self.clf = None
+        self.clf = clf
         self.transf_t = None
         self.transf_s = None
 
@@ -131,9 +131,10 @@ class JGSA:
         zt = xt
         for _ in range(self.n_iterations):
             # obtain pseudo-labels of target samples
-            clf = KNeighborsClassifier(1)
-            clf.fit(zs.T, ys[:, 0])
-            yt = np.expand_dims(clf.predict(zt.T), 1)
+            if self.clf is None:
+                self.clf = KNeighborsClassifier(1)
+            self.clf.fit(zs.T, ys[:, 0])
+            yt = np.expand_dims(self.clf.predict(zt.T), 1)
 
             ms, mt, mst, mts = self.construct_m(xs, xt, ys, yt)
 
@@ -150,7 +151,8 @@ class JGSA:
             zs = self.transf_s.T @ xs
             zt = self.transf_t.T @ xt
 
-        self.clf = KNeighborsClassifier(1)
+        if self.clf is None:
+            self.clf = KNeighborsClassifier(1)
         self.clf.fit(zs.T, ys[:, 0])
         return zs, zt, self.transf_s, self.transf_t
 

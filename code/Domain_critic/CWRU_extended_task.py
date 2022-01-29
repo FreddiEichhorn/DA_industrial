@@ -6,6 +6,7 @@ import CWRU_loader_extended_task
 from CWRU_loader_extended_task import find_sampling_weights
 import pandas as pd
 import matplotlib as mpl
+import argparse
 mpl.use('Agg')
 
 
@@ -311,11 +312,26 @@ if __name__ == "__main__":
                                     '1750->1797', '1750->1772', '1750->1730', '1730->1797', '1730->1772', '1730->1750'])
     results = results.append(pd.DataFrame(index=['1797', '1772', '1750', '1730']))
 
-    # Training hyperparameters
-    lr = 0.001
-    weight_decay = 0
-    num_epochs = 1002
-    partial_da = False  # model wont learn when True
+    # Hyperparameters of the model
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lr", help="learning rate of the model", default=0.001, required=False)
+    parser.add_argument("--weight_decay", default=0, required=False)
+    parser.add_argument("--num_epochs", default=500, required=False)
+    parser.add_argument("--regularize", default=True, required=False)
+    parser.add_argument("--stratify", default=True, required=False)
+    parser.add_argument("--device", default="cuda:1", required=False)
+    parser.add_argument("--partial_da", default=False, required=False)
+    parser.add_argument("--weight_dc", default=.4, required=False, type=float)
+    parser.add_argument("--weight_reg", default=.7, required=False, type=float)
+    args = parser.parse_args()
+    lr = args.lr
+    weight_decay = args.weight_decay
+    num_epochs = args.num_epochs
+    regularize = args.regularize
+    stratify = args.stratify
+    partial_da = args.partial_da
+    wgt_dc = float(args.weight_dc)
+    wgt_reg = float(args.weight_reg)
 
     for rpm in ['1797', '1772', '1750', '1730']:
         for rpm_target in ['1797', '1772', '1750', '1730']:
@@ -325,7 +341,7 @@ if __name__ == "__main__":
 
             # Define what device to run on
             if torch.cuda.is_available():
-                device = 'cuda:0'
+                device = args.device
             else:
                 device = 'cpu'
 
@@ -333,10 +349,12 @@ if __name__ == "__main__":
             sample_length = 1000
             dataset_s = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm], normalise=True, train=True)
 
-            #sampler = torch.utils.data.WeightedRandomSampler(dataset_s.find_sampling_weights(), len(dataset_s))
-            #loader_train_s = DataLoader(dataset_s, batch_size=20, shuffle=False, num_workers=1, sampler=sampler,
-            #                            drop_last=True)
-            loader_train_s = CWRU_loader_extended_task.StratifiedDataLoader(dataset_s, 20)
+            if not stratify:
+                sampler = torch.utils.data.WeightedRandomSampler(dataset_s.find_sampling_weights(), len(dataset_s))
+                loader_train_s = DataLoader(dataset_s, batch_size=20, shuffle=False, num_workers=1, sampler=sampler,
+                                            drop_last=True)
+            else:
+                loader_train_s = CWRU_loader_extended_task.StratifiedDataLoader(dataset_s, 20)
 
             # Initialise target training dataset
             dataset_t = CWRU_loader_extended_task.CWRU(sample_length, True, partial_da, [rpm_target], train=True)
@@ -350,10 +368,6 @@ if __name__ == "__main__":
             model.train()
             domain_critic = DomainCritic3().to(device)
             domain_critic.train()
-            #weight_path = '../../models/CWRU/dc_rpm' + rpm + '_lr' + str(lr) + '_weightdecay' + str(weight_decay) + '.pth'
-            weight_path = None
-            if weight_path is not None:
-                model.load_state_dict(torch.load(weight_path))
 
             loss_function = torch.nn.CrossEntropyLoss()
             loss_da = torch.nn.CrossEntropyLoss(reduction='none')
@@ -377,7 +391,7 @@ if __name__ == "__main__":
                     loss_dc_t = loss_da(domain_pred_t, torch.LongTensor([1] * domain_pred_t.shape[0]).to(device)).sum() / 20
 
                     # the last term should be omitted if we are unsure whether the target data is balanced
-                    loss = loss_dc_s + loss_dc_t + loss_classification + loss_reg(output_s, 10) / 3
+                    loss = (loss_dc_s + loss_dc_t) * wgt_dc + loss_classification + loss_reg(output_s, 10) * wgt_reg
 
                     loss.backward()
                     optimizer.step()
@@ -404,5 +418,5 @@ if __name__ == "__main__":
                 print('evaluation rpm', str(rpm_eval), acc_target)
                 results[rpm + '->' + rpm_target][rpm_eval] = acc_target
 
-    results.to_csv('../eval/results/CWRU/' + 'dc' + rpm + '_lr' + str(lr) + '_epochs' + str(num_epochs) +
-                   '_weightdecay' + str(weight_decay) + '.csv', ';')
+    results.to_csv('../eval/results/CWRU/' + 'dc' + rpm + '_lr' + str(lr) + '_epochs' + str(num_epochs) + '_wgtdc' +
+                   str(wgt_dc) + '_wgtreg' + str(wgt_reg) + '.csv', ';')
