@@ -14,7 +14,7 @@ import GFK
 class MEDA:
     """Implementation of Manifold Embedded Distribution alignment, based on the official implementation. Known issue:
     requires the classes to have numbers 1...n, which is uncommon in python"""
-    def __init__(self, options=None):
+    def __init__(self, options=None, clf=None):
         if options is None:
             options = {}
         if 'kernel_type' in options.keys():
@@ -51,6 +51,7 @@ class MEDA:
         self.sq_g = None
         self.x = None
         self.beta = None
+        self.clf = clf
 
     @staticmethod
     def kernel(ker, X, X2, gamma):
@@ -127,9 +128,10 @@ class MEDA:
 
         self.x /= np.linalg.norm(self.x, axis=0) + 1e-9
         l = 0  # Graph Laplacian is on the way...
-        knn_clf = KNeighborsClassifier(n_neighbors=1)
-        knn_clf.fit(self.x[:, :n_source].T, ys.ravel())
-        cls = knn_clf.predict(self.x[:, n_source:].T)
+        if self.clf is None:
+            self.clf = KNeighborsClassifier(n_neighbors=1)
+        self.clf.fit(self.x[:, :n_source].T, ys.ravel())
+        cls = self.clf.predict(self.x[:, n_source:].T)
         k = self.kernel(self.kernel_type, self.x, X2=None, gamma=self.gamma)
         E = np.diagflat(np.vstack((np.ones((n_source, 1)), np.zeros((n_target, 1)))))
         for iteration in range(1, self.t + 1):
@@ -157,6 +159,7 @@ class MEDA:
         return self.x, self.beta, self.sq_g, cls
 
     def inference(self, sample):
+        # TODO: Check whether we can add another classifer
         sample = self.sq_g @ sample.T
         sample /= np.linalg.norm(sample, axis=0) + 1e-9
         k = self.kernel_inf('rbf', sample, self.x, 1)

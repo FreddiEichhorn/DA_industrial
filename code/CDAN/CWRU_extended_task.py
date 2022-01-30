@@ -351,7 +351,7 @@ if __name__ == "__main__":
     parser.add_argument("--stratify", default=True, required=False)
     parser.add_argument("--device", default="cuda:0", required=False)
     parser.add_argument("--partial_da", default=False, required=False)
-    parser.add_argument("--weight_cdc", default=.8, required=False, type=float)
+    parser.add_argument("--weight_cdc", default=.6, required=False, type=float)
     parser.add_argument("--weight_mdc", default=.3, required=False, type=float)
     parser.add_argument("--weight_reg", default=.7, required=False)
     args = parser.parse_args()

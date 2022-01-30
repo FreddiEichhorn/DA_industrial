@@ -10,13 +10,13 @@ from sklearn.neighbors import KNeighborsClassifier
 
 
 class SA:
-    def __init__(self, options=None):
+    def __init__(self, options=None, clf=None):
         if options is None:
             options = {}
 
         self.Utrans = None
         self.Ut = None
-        self.clf = None
+        self.clf = clf
 
     @staticmethod
     def normalise_features(h):
@@ -39,7 +39,8 @@ class SA:
         Us = self.pca(Xs, 50)
         self.Ut = self.pca(Xt, 50)
         self.Utrans = Us @ Us.T @ self.Ut
-        self.clf = KNeighborsClassifier(1)
+        if self.clf is None:
+            self.clf = KNeighborsClassifier(1)
         self.clf.fit(Xs @ self.Utrans, Ys[:, 0])
         return self.Utrans, self.Ut
 
@@ -49,12 +50,12 @@ class SA:
 
 
 class PCASource:
-    def __init__(self, options=None):
+    def __init__(self, options=None, clf=None):
         if options is None:
             options = {}
 
         self.Us = None
-        self.clf = None
+        self.clf = clf
 
     @staticmethod
     def normalise_features(h):
@@ -75,7 +76,8 @@ class PCASource:
 
     def fit(self, xs, ys, xt):
         self.Us = self.pca(xs, 50)
-        self.clf = KNeighborsClassifier(1)
+        if self.clf is None:
+            self.clf = KNeighborsClassifier(1)
         self.clf.fit(xs @ self.Us, ys[:, 0])
         return self.Us
 
@@ -85,14 +87,14 @@ class PCASource:
 
 
 class PCATarget:
-    def __init__(self, options=None):
+    def __init__(self, options=None, clf=None):
         if options is None:
             options = {}
             self.subspace_size = 50
         else:
             self.subspace_size = options['subspace_size']
         self.Ut = None
-        self.clf = None
+        self.clf = clf
 
     @staticmethod
     def normalise_features(h):
@@ -113,7 +115,8 @@ class PCATarget:
 
     def fit(self, xs, ys, xt):
         self.Ut = self.pca(xt, self.subspace_size)
-        self.clf = KNeighborsClassifier(1)
+        if self.clf is None:
+            self.clf = KNeighborsClassifier(1)
         self.clf.fit(xs @ self.Ut, ys[:, 0])
         return self.Ut
 

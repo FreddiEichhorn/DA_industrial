@@ -1,2 +1,0 @@
-domain shift: 1750-->1772
-Guessed 696 of 725. Accuracy: 0.96

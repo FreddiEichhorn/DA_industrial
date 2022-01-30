@@ -1,8 +1,0 @@
-domain shift: 1772-->1797
-Guessed 334 of 486. Accuracy: 0.6872
-domain shift: 1772-->1772
-Guessed 725 of 725. Accuracy: 1.0
-domain shift: 1772-->1750
-Guessed 630 of 728. Accuracy: 0.8654
-domain shift: 1772-->1730
-Guessed 614 of 728. Accuracy: 0.8434

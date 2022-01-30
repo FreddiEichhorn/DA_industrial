@@ -61,7 +61,7 @@ def gsvd2(d1, d2):
 
 
 class GFK:
-    def __init__(self, options=None, clf_neural_net=None):
+    def __init__(self, options=None, clf=None):
         if options is None:
             options = {}
 
@@ -70,9 +70,8 @@ class GFK:
         else:
             self.dim = 20
 
-        self.clf = None
         self.sq_g = None
-        self.clf_neural_net = clf_neural_net
+        self.clf = clf
 
     @staticmethod
     def normalise_features(h):
@@ -119,18 +118,11 @@ class GFK:
         g = q @ a3 @ a6 @ a9.T @ q.T
         self.sq_g = np.real(scipy.linalg.sqrtm(g))
 
-        self.clf = KNeighborsClassifier(1)
+        if self.clf is None:
+            self.clf = KNeighborsClassifier(1)
         self.clf.fit((self.sq_g @ features_s.T).T, labels_s[:, 0])
 
-        if self.clf_neural_net is not None:
-            for _ in range(self.clf_neural_net.num_it):
-                self.clf_neural_net.forward()
         return self.sq_g
 
     def inference(self, sample):
         return self.clf.predict((self.sq_g @ sample.T).T)
-
-    def inference_neural_net(self, sample):
-        if self.clf_neural_net is not None:
-            return self.clf_neural_net.forward(sample)
-

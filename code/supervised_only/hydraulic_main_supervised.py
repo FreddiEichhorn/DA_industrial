@@ -263,8 +263,8 @@ if __name__ == "__main__":
         torch.load("../../data/Condition monitoring of hydraulic systems/dataset_weightsv2.pt"), len(dataset))
     loader = DataLoader(dataset, batch_size=10, shuffle=False, num_workers=1, sampler=sampler)
     model = Classifier()
-    weight_path = "../../models/Condition monitoring of hydraulic systems/sup_only_2021_11_09_05_42.pt"
-    #weight_path = None
+    #weight_path = "../../models/Condition monitoring of hydraulic systems/sup_only_2021_11_09_05_42.pt"
+    weight_path = None
     if weight_path is not None:
         model.load_state_dict(torch.load(weight_path))
 
