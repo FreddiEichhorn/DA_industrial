@@ -52,6 +52,7 @@ class MEDA:
         self.x = None
         self.beta = None
         self.clf = clf
+        self.min_classes = None
 
     @staticmethod
     def kernel(ker, X, X2, gamma):
@@ -103,10 +104,14 @@ class MEDA:
         :param xs: ns * n_feature, source feature
         :param ys: ns * 1, source label
         :param xt: nt * n_feature, target feature
-        :param yt: nt * 1, target label
-        :param options: Dict specifying kernel type, gamma, T, rho, eta, lamb
         :return: acc, y_pred, list_acc
         """
+
+        if min(ys) == 0:
+            self.min_classes = 0
+            ys = ys + 1
+        else:
+            self.min_classes = 1
 
         gfk = GFK.GFK()
         self.sq_g = gfk.fit(xs, ys, xt)
@@ -159,11 +164,13 @@ class MEDA:
         return self.x, self.beta, self.sq_g, cls
 
     def inference(self, sample):
-        # TODO: Check whether we can add another classifer
         sample = self.sq_g @ sample.T
         sample /= np.linalg.norm(sample, axis=0) + 1e-9
         k = self.kernel_inf('rbf', sample, self.x, 1)
-        return np.argmax(k @ self.beta, axis=1) + 1
+        if self.min_classes == 1:
+            return np.argmax(k @ self.beta, axis=1) + 1
+        else:
+            return np.argmax(k @ self.beta, axis=1)
 
 
 def main():
