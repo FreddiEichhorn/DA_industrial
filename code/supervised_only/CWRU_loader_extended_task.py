@@ -13,7 +13,10 @@ class CWRU(Dataset):
     :param partial_da: Whether or not the dataset should only include healthy samples for training of on a partial DA
     task
     :param train: whether to return the training or evaluation split"""
-    def __init__(self, sample_length, normalise=True, partial_da=False, rpms=None, train=None):
+    def __init__(self, sample_length, normalise=True, rpms=None, train=None, partial_da=None, ):
+        if partial_da is None:
+            partial_da = ['healthy', 'B0_07', 'B0_14', 'B0_21', 'IR0_07', 'IR0_14', 'IR0_21', 'OR0_07', 'OR0_14',
+                          'OR0_21']
         if rpms is None:
             rpms = {'1797': '_0', '1772': '_1', '1750': '_2', '1730': '_3'}
         else:
@@ -33,43 +36,39 @@ class CWRU(Dataset):
         # self.variance = torch.Tensor([0.0378, 0.0264, 0.0033]).unsqueeze(1)
         self.variance = torch.Tensor([0.0881, 0.026, 0.0032]).unsqueeze(1)
         self.normalise = normalise
-        if not partial_da:
-            self.data = {'healthy': [],
-                         'B0_07': [],
-                         'B0_14': [],
-                         'B0_21': [],
-                         'IR0_07': [],
-                         'IR0_14': [],
-                         'IR0_21': [],
-                         'OR0_07': [],
-                         'OR0_14': [],
-                         'OR0_21': []}
 
-            self.lengths = {'healthy': 0,
-                            'B0_07': 0,
-                            'B0_14': 0,
-                            'B0_21': 0,
-                            'IR0_07': 0,
-                            'IR0_14': 0,
-                            'IR0_21': 0,
-                            'OR0_07': 0,
-                            'OR0_14': 0,
-                            'OR0_21': 0}
+        self.data = {'healthy': [],
+                     'B0_07': [],
+                     'B0_14': [],
+                     'B0_21': [],
+                     'IR0_07': [],
+                     'IR0_14': [],
+                     'IR0_21': [],
+                     'OR0_07': [],
+                     'OR0_14': [],
+                     'OR0_21': []}
 
-            self.gts = {'healthy': 0,
-                        'B0_07': 1,
-                        'B0_14': 2,
-                        'B0_21': 3,
-                        'IR0_07': 4,
-                        'IR0_14': 5,
-                        'IR0_21': 6,
-                        'OR0_07': 7,
-                        'OR0_14': 8,
-                        'OR0_21': 9}
-        else:
-            self.data = {'healthy': []}
-            self.lengths = {'healthy': 0}
-            self.gts = {'healthy': 0}
+        self.lengths = {'healthy': 0,
+                        'B0_07': 0,
+                        'B0_14': 0,
+                        'B0_21': 0,
+                        'IR0_07': 0,
+                        'IR0_14': 0,
+                        'IR0_21': 0,
+                        'OR0_07': 0,
+                        'OR0_14': 0,
+                        'OR0_21': 0}
+
+        self.gts = {'healthy': 0,
+                    'B0_07': 1,
+                    'B0_14': 2,
+                    'B0_21': 3,
+                    'IR0_07': 4,
+                    'IR0_14': 5,
+                    'IR0_21': 6,
+                    'OR0_07': 7,
+                    'OR0_14': 8,
+                    'OR0_21': 9}
 
         fault_sizes = ['07', '14', '21']
         fault_locations = ['B0', 'IR0', 'OR0']
@@ -143,32 +142,39 @@ class CWRU(Dataset):
             self.data['healthy'].append(h)
             self.lengths['healthy'] += self.data['healthy'][-1].shape[1]
 
-        if not partial_da:
-            for fault_location in fault_locations:
-                for rpm in rpms:
-                    for fault_size in fault_sizes:
-                        h = scipy.io.loadmat('../../data/CWRU/' + fault_location + fault_size + rpms[rpm])
-                        t_list = []
-                        for key in h.keys():
-                            if 'DE_time' in key:
-                                t_list.append(h[key][:, 0])
-                            if 'FE_time' in key:
-                                t_list.append(h[key][:, 0])
-                            if 'BA_time' in key:
-                                t_list.append(h[key][:, 0])
+        for fault_location in fault_locations:
+            for rpm in rpms:
+                for fault_size in fault_sizes:
+                    h = scipy.io.loadmat('../../data/CWRU/' + fault_location + fault_size + rpms[rpm])
+                    t_list = []
+                    for key in h.keys():
+                        if 'DE_time' in key:
+                            t_list.append(h[key][:, 0])
+                        if 'FE_time' in key:
+                            t_list.append(h[key][:, 0])
+                        if 'BA_time' in key:
+                            t_list.append(h[key][:, 0])
 
-                        t_list = torch.Tensor(t_list)
-                        t_list = t_list[:, :int(t_list.shape[1] / sample_length) * sample_length]
-                        t_list = t_list.reshape(3, int(t_list.shape[1] / sample_length), sample_length)
-                        if train is not None:
-                            if train:
-                                torch.manual_seed(42)
-                                t_list = t_list[:, torch.randperm(t_list.shape[1])[:int(0.9 * t_list.shape[1])]]
-                            else:
-                                torch.manual_seed(42)
-                                t_list = t_list[:, torch.randperm(t_list.shape[1])[int(0.9 * t_list.shape[1]):]]
-                        self.data[fault_location + '_' + fault_size].append(torch.Tensor(t_list))
-                        self.lengths[fault_location + '_' + fault_size] += t_list.shape[1]
+                    t_list = torch.Tensor(t_list)
+                    t_list = t_list[:, :int(t_list.shape[1] / sample_length) * sample_length]
+                    t_list = t_list.reshape(3, int(t_list.shape[1] / sample_length), sample_length)
+                    if train is not None:
+                        if train:
+                            torch.manual_seed(42)
+                            t_list = t_list[:, torch.randperm(t_list.shape[1])[:int(0.9 * t_list.shape[1])]]
+                        else:
+                            torch.manual_seed(42)
+                            t_list = t_list[:, torch.randperm(t_list.shape[1])[int(0.9 * t_list.shape[1]):]]
+                    self.data[fault_location + '_' + fault_size].append(torch.Tensor(t_list))
+                    self.lengths[fault_location + '_' + fault_size] += t_list.shape[1]
+
+        for idx in partial_da:
+            if idx not in self.data.keys():
+                self.data.pop(idx)
+            if idx not in self.lengths.keys():
+                self.lengths.pop(idx)
+            if idx not in self.gts.keys():
+                self.gts.pop(idx)
 
     def __len__(self):
 
