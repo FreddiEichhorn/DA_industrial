@@ -3,7 +3,6 @@ from torch.utils.data import DataLoader
 import sys
 sys.path.append('../supervised_only')
 import CWRU_loader_extended_task
-from CWRU_loader_extended_task import find_sampling_weights
 import pandas as pd
 import matplotlib as mpl
 import argparse
@@ -187,6 +186,31 @@ class GRL(torch.autograd.Function):
         return grad_output * -1
 
 
+def mmd3(xs, xt, kernel='linear', sigma=1):
+
+    def linear_kernel(a, b):
+        helper = a @ b.T
+        return -torch.diag(a @ a.T).expand_as(helper).T + 2 * helper - torch.diag(b @ b.T).expand_as(helper)
+
+    def rbf_kernel(a, b):
+        return torch.exp(linear_kernel(a, b) / sigma)
+
+    if kernel == 'linear':
+        k1 = linear_kernel(xs, xs)
+        k2 = linear_kernel(xs, xt)
+        k3 = linear_kernel(xt, xt)
+    elif kernel == 'rbf':
+        k1 = rbf_kernel(xs, xs)
+        k2 = rbf_kernel(xs, xt)
+        k3 = rbf_kernel(xt, xt)
+    else:
+        k1 = None
+        k2 = None
+        k3 = None
+
+    return torch.mean(k1 - 2 * k2 + k3)
+
+
 class DomainCritic(torch.nn.Module):
     def __init__(self):
         super(DomainCritic, self).__init__()
@@ -346,11 +370,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--lr", help="learning rate of the model", default=0.001, required=False)
     parser.add_argument("--weight_decay", default=0, required=False)
-    parser.add_argument("--num_epochs", default=500, required=False)
+    parser.add_argument("--num_epochs", default=500, required=False, type=int)
     parser.add_argument("--regularize", default=True, required=False)
     parser.add_argument("--stratify", default=True, required=False)
     parser.add_argument("--device", default="cuda:0", required=False)
     parser.add_argument("--partial_da", default=False, required=False)
+    parser.add_argument("--type_mdc", default="adversary", required=False, help="adversary, rbf or linear")
     parser.add_argument("--weight_cdc", default=.6, required=False, type=float)
     parser.add_argument("--weight_mdc", default=.3, required=False, type=float)
     parser.add_argument("--weight_reg", default=.7, required=False)
@@ -361,6 +386,7 @@ if __name__ == "__main__":
     regularize = args.regularize
     stratify = args.stratify
     partial_da = args.partial_da
+    type_mdc = args.type_mdc
     weight_cdc = float(args.weight_cdc)
     weight_mdc = float(args.weight_mdc)
     weight_reg = float(args.weight_reg)
@@ -381,10 +407,12 @@ if __name__ == "__main__":
             sample_length = 1000
             dataset_s = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm], normalise=True, train=True)
 
-            #sampler = torch.utils.data.WeightedRandomSampler(dataset_s.find_sampling_weights(), len(dataset_s))
-            #loader_train_s = DataLoader(dataset_s, batch_size=20, shuffle=False, num_workers=1, sampler=sampler,
-            #                            drop_last=True)
-            loader_train_s = CWRU_loader_extended_task.StratifiedDataLoader(dataset_s, 20)
+            if not stratify:
+                sampler = torch.utils.data.WeightedRandomSampler(dataset_s.find_sampling_weights(), len(dataset_s))
+                loader_train_s = DataLoader(dataset_s, batch_size=20, shuffle=False, num_workers=1, sampler=sampler,
+                                            drop_last=True)
+            else:
+                loader_train_s = CWRU_loader_extended_task.StratifiedDataLoader(dataset_s, 20)
 
             # Initialise target training dataset
             dataset_t = CWRU_loader_extended_task.CWRU(sample_length, True, partial_da, [rpm_target], train=True)
@@ -397,12 +425,16 @@ if __name__ == "__main__":
             model = Classifier9(sample_length).to(device)
             model.train()
             cdc = ConditionalDomainCritic(DomainCritic3, 10)
-            mdc = DomainCritic3().to(device)
-            mdc.train()
+            if type_mdc == "adversary":
+                mdc = DomainCritic3().to(device)
+                mdc.train()
 
             loss_function = torch.nn.CrossEntropyLoss()
             loss_da = torch.nn.CrossEntropyLoss(reduction='none')
-            optimizer = torch.optim.SGD(list(model.parameters()) + cdc.parameters() + list(mdc.parameters()), lr=lr)
+            if type_mdc == 'adversary':
+                optimizer = torch.optim.SGD(list(model.parameters()) + cdc.parameters() + list(mdc.parameters()), lr=lr)
+            else:
+                optimizer = torch.optim.SGD(list(model.parameters()) + cdc.parameters(), lr=lr)
             N = 0
 
             for epoch in range(num_epochs):
@@ -414,15 +446,25 @@ if __name__ == "__main__":
                     loss_classification = loss_function(output_s, gt)
 
                     loss_cdc_s = cdc.forward(model.x2_pool, torch.LongTensor([0] * data_s.shape[0]).to(device), gt)
-                    domain_pred_s = mdc.forward(model.x2_pool)
-                    loss_mdc_s = loss_da(domain_pred_s, torch.LongTensor([0] * domain_pred_s.shape[0]).to(device)).sum() / 20
+                    features_x5_reshape = model.x5_reshape
+                    features_x2_pool = model.x2_pool
 
                     output_t = model.forward(data_t)
                     loss_cdc_t = cdc.forward(model.x2_pool, torch.LongTensor([1] * data_s.shape[0]).to(device),output_t)
-                    domain_pred_t = mdc.forward(model.x2_pool)
-                    loss_mdc_t = loss_da(domain_pred_t, torch.LongTensor([1] * domain_pred_t.shape[0]).to(device)).sum() / 20
 
-                    loss = (loss_cdc_s + loss_cdc_t) * weight_cdc + loss_classification + (loss_mdc_s + loss_mdc_t) * weight_mdc + loss_reg(output_s, 10) * weight_reg
+                    if type_mdc == "adversary":
+                        domain_pred_s = mdc.forward(features_x2_pool)
+                        loss_mdc_s = loss_da(domain_pred_s, torch.LongTensor([0] * domain_pred_s.shape[0]).
+                                             to(device)).sum() / 20
+
+                        domain_pred_t = mdc.forward(model.x2_pool)
+                        loss_mdc_t = loss_da(domain_pred_t, torch.LongTensor([1] * domain_pred_t.shape[0]).
+                                             to(device)).sum() / 20
+                        loss_mdc = loss_mdc_s + loss_mdc_t
+                    else:
+                        loss_mdc = mmd3(features_x5_reshape, model.x5_reshape, type_mdc, 10000)
+
+                    loss = (loss_cdc_s + loss_cdc_t) * weight_cdc + loss_classification + loss_mdc * weight_mdc + loss_reg(output_s, 10) * weight_reg
 
                     loss.backward()
                     optimizer.step()
@@ -451,4 +493,5 @@ if __name__ == "__main__":
                 results[rpm + '->' + rpm_target][rpm_eval] = acc_target
 
     results.to_csv('../eval/results/CWRU/' + 'cdc' + rpm + '_lr' + str(lr) + '_epochs' + str(num_epochs) + '_reg' +
-                   str(weight_reg) + '_cdcwght' + str(weight_cdc) + '_mdcwght' + str(weight_mdc) + '.csv', ';')
+                   str(weight_reg) + '_cdcwght' + str(weight_cdc) + '_' + type_mdc + '_mdcwght' + str(weight_mdc) +
+                   '.csv', ';')

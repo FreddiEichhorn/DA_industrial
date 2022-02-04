@@ -145,8 +145,9 @@ def main():
                     predictions_t = methods[method].inference(target_normalised_eval)
                     accuracy_t = (predictions_t == lbl_eval_t).sum() / ts_eval_t.shape[0]
                     results[method][src_domain + '->' + tgt_domain] = accuracy_t
+                    print('accuracy of ' + method + ' on domain shift ', src_domain, '->', tgt_domain, ': ', accuracy_t)
 
-    results.to_csv('../eval/results/CWRU/' + 'manual_features_' + str(normalize) + '.csv', ';')
+    results.to_csv('../eval/results/CWRU/' + 'manual_features_' + 'normalize' * normalize + '.csv', ';')
 
 
 if __name__ == '__main__':

@@ -237,11 +237,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--lr", help="learning rate of the model", default=0.001, required=False)
     parser.add_argument("--weight_decay", default=0, required=False)
-    parser.add_argument("--num_epochs", default=1000, required=False)
+    parser.add_argument("--num_epochs", default=1000, required=False, type=int)
     parser.add_argument("--regularize", default=True, required=False)
     parser.add_argument("--stratify", default=True, required=False)
-    parser.add_argument("--kernel_type", default="linear", required=False)
+    parser.add_argument("--kernel_type", default="rbf", required=False)
     parser.add_argument("--device", default="cuda:0", required=False)
+    parser.add_argument("--weight_mmd", default=10, required=False, type=float)
+    parser.add_argument("--weight_reg", default=.7, required=False, type=float)
     args = parser.parse_args()
     lr = args.lr
     weight_decay = args.weight_decay
@@ -249,6 +251,8 @@ if __name__ == "__main__":
     regularize = args.regularize
     stratify = args.stratify
     kernel_type = args.kernel_type
+    weight_mmd = float(args.weight_mmd)
+    weight_reg = float(args.weight_reg)
 
     for rpm in ['1797', '1772', '1750', '1730']:
         for rpm_target in ['1797', '1772', '1750', '1730']:
@@ -301,9 +305,9 @@ if __name__ == "__main__":
                     loss_classification = loss_function(output, gt)
                     loss_mmd = mmd3(features_s, model.x5_reshape, kernel_type, 10000)
                     if kernel_type == 'linear':
-                        loss = loss_classification + loss_reg(output) / 1.5 + loss_mmd / 1000
+                        loss = loss_classification + loss_reg(output) * weight_reg + loss_mmd * weight_mmd
                     else:
-                        loss = loss_classification + loss_reg(output) / 1.5 + loss_mmd * 10
+                        loss = loss_classification + loss_reg(output) * weight_reg + loss_mmd * weight_mmd
                     loss.backward()
                     optimizer.step()
                     optimizer.zero_grad()
@@ -330,4 +334,5 @@ if __name__ == "__main__":
                 results[rpm + '->' + rpm_target][rpm_eval] = acc_target
 
     results.to_csv('../eval/results/CWRU/' + 'mmd' + '_lr' + str(lr) + '_epochs' + str(num_epochs) + '_weightdecay' +
-                   str(weight_decay) + '_' + kernel_type + '_reg' * regularize + '_strat' * stratify + '.csv', ';')
+                   str(weight_decay) + '_' + kernel_type + '_reg' * regularize + '_strat' * stratify + '_weight_mmd' +
+                   str(weight_mmd) + '_weight_reg' + str(weight_reg) + '.csv', ';')

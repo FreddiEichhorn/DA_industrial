@@ -33,7 +33,7 @@ def main():
     normalize_dataset = False
     normalize_sep = False
     seed = 42
-    balance = True
+    balance = False
 
     dataset_s1 = chemical_loader.ChemicalLoader(1, train=True, normalise=normalize_dataset, balance=balance, seed=seed)
     dataset_s2 = chemical_loader.ChemicalLoader(2, train=True, normalise=normalize_dataset, balance=balance, seed=seed)

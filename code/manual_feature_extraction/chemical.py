@@ -16,13 +16,13 @@ import SA
 import pandas as pd
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn import svm
-from sklearn.tree import DecisionTreeClassifier
+import matplotlib.pyplot as plt
 
 
 def main():
     methods = {'1NN': None,
                'SA + 1NN': SA.SA(),
+               #'SA + 5NN': SA.SA(clf=KNeighborsClassifier(5)),
                #'SA + SVM': SA.SA(clf=svm.SVC(gamma=2, C=1)),
                #'SA + DT': SA.SA(clf=DecisionTreeClassifier(max_depth=5)),
                #'PCA_src + 1NN': SA.PCASource(),
@@ -32,9 +32,11 @@ def main():
                #'PCA_tgt + SVM': SA.PCATarget(clf=svm.SVC(gamma=2, C=1)),
                #'PCA_tgt + DT': SA.PCATarget(clf=DecisionTreeClassifier(max_depth=5)),
                'GFK + 1NN': GFK.GFK(),
+               #'GFK + 5NN': GFK.GFK(clf=KNeighborsClassifier(5)),
                #'GFK + SVM': GFK.GFK(clf=svm.SVC(gamma=2, C=1)),
                #'GFK + DT': GFK.GFK(clf=DecisionTreeClassifier(max_depth=5)),
                'JGSA + 1NN': JGSA.JGSA(),
+               'JGSA + 5NN': JGSA.JGSA(clf=KNeighborsClassifier(5)),
                #'JGSA + SVM': JGSA.JGSA(clf=svm.SVC(gamma=2, C=1)),
                #'JGSA + DT': JGSA.JGSA(clf=DecisionTreeClassifier(max_depth=5)),
                'MEDA + 1NN': MEDA.MEDA(),
@@ -57,7 +59,7 @@ def main():
         dataset_t_eval = chemical_loader.ChemicalLoader(tgt, train=False, normalise=normalize_dataset, balance=balance,
                                                         seed=seed)
 
-        results = results.append(pd.DataFrame(index=['batch1+2 --> batch' + str(tgt)]))
+        results = results.append(pd.DataFrame(index=['batch' + str(tgt)]))
         for method_name in methods:
             if methods[method_name] is None:
 
@@ -84,10 +86,18 @@ def main():
 
             acc = (predict_t == dataset_t_eval.gt).sum() / len(dataset_t_eval)
             print('batch1+2 --> batch' + str(tgt) + ' using ' + method_name + ' accuracy: ' + str(round(acc, 4)))
-            results[method_name]['batch1+2 --> batch' + str(tgt)] = round(acc, 4)
+            results[method_name]['batch' + str(tgt)] = round(acc, 4)
 
     results.to_csv('../eval/results/chemical/classical' + '_normalise' * normalize_dataset + '_normalise_sep'
                    * normalize_sep + '_balance' * balance + '.csv', ';')
+
+    # plot the results
+    for method_name in methods:
+        plt.plot(results[method_name], label=method_name)
+    plt.legend()
+    plt.axis([0, 10, 0, 1])
+    plt.savefig('../eval/results/chemical/classical' + '_normalise' * normalize_dataset + '_normalise_sep' *
+                normalize_sep + '_balance' * balance + '.png')
 
 
 if __name__ == "__main__":
