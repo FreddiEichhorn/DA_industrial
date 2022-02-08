@@ -12,8 +12,7 @@ import GFK
 
 
 class MEDA:
-    """Implementation of Manifold Embedded Distribution alignment, based on the official implementation. Known issue:
-    requires the classes to have numbers 1...n, which is uncommon in python"""
+    """Implementation of Manifold Embedded Distribution alignment, based on the official implementation"""
     def __init__(self, options=None, clf=None):
         if options is None:
             options = {}

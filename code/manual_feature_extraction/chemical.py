@@ -17,6 +17,8 @@ import pandas as pd
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 import matplotlib.pyplot as plt
+from sklearn import svm
+from sklearn.neural_network import MLPClassifier
 
 
 def main():
@@ -39,25 +41,35 @@ def main():
                'JGSA + 5NN': JGSA.JGSA(clf=KNeighborsClassifier(5)),
                #'JGSA + SVM': JGSA.JGSA(clf=svm.SVC(gamma=2, C=1)),
                #'JGSA + DT': JGSA.JGSA(clf=DecisionTreeClassifier(max_depth=5)),
-               'MEDA + 1NN': MEDA.MEDA(),
-               #'MEDA + SVM': MEDA.MEDA(clf=svm.SVC(gamma=2, C=1))
+               #'MEDA + 1NN': MEDA.MEDA(),
+               'MEDA + SVM': MEDA.MEDA(clf=svm.SVC(gamma=2, C=1)),
+               'MEDA + MLP': MEDA.MEDA(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(15, ), random_state=1,
+                                                         solver='sgd', max_iter=600))
                }
     results = pd.DataFrame(columns=methods.keys())
     normalize_dataset = False
     seed = 42
     normalize_sep = False
-    balance = False
+    balance = True
+    use_all_target = False
 
     dataset_s1 = chemical_loader.ChemicalLoader(1, train=True, normalise=normalize_dataset, balance=balance, seed=seed)
     dataset_s2 = chemical_loader.ChemicalLoader(2, train=True, normalise=normalize_dataset, balance=balance, seed=seed)
     data_s = np.vstack((dataset_s1.data, dataset_s2.data))
     gt_s = np.hstack((dataset_s1.gt, dataset_s2.gt))
+    data_t_train = np.zeros((0, 128))
 
     for tgt in range(1, 11):
         dataset_t_train = chemical_loader.ChemicalLoader(tgt, train=True, normalise=normalize_dataset, balance=balance,
                                                          seed=seed)
         dataset_t_eval = chemical_loader.ChemicalLoader(tgt, train=False, normalise=normalize_dataset, balance=balance,
                                                         seed=seed)
+
+        if use_all_target:
+            data_t_train = np.vstack((data_t_train, dataset_t_train.data))
+        else:
+            data_t_train = dataset_t_train.data
+        data_t_eval = dataset_t_eval.data
 
         results = results.append(pd.DataFrame(index=['batch' + str(tgt)]))
         for method_name in methods:
@@ -71,12 +83,12 @@ def main():
 
                 if normalize_sep:
                     src_norm = methods[method_name].normalise_features({'fts': data_s})
-                    tgt_norm_train = methods[method_name].normalise_features({'fts': dataset_t_train.data})
-                    tgt_norm_eval = methods[method_name].normalise_features({'fts': dataset_t_eval.data})
+                    tgt_norm_train = methods[method_name].normalise_features({'fts': data_t_train.data})
+                    tgt_norm_eval = methods[method_name].normalise_features({'fts': data_t_eval.data})
                 else:
                     all_normalised = methods[method_name].normalise_features({'fts': np.vstack((data_s,
-                                                                                                dataset_t_eval.data,
-                                                                                                dataset_t_train.data))})
+                                                                                                data_t_eval.data,
+                                                                                                data_t_train.data))})
                     src_norm = all_normalised[:data_s.shape[0]]
                     tgt_norm_eval = all_normalised[data_s.shape[0]:(data_s.shape[0] + dataset_t_eval.data.shape[0])]
                     tgt_norm_train = all_normalised[(data_s.shape[0] + dataset_t_eval.data.shape[0]):]
@@ -89,7 +101,7 @@ def main():
             results[method_name]['batch' + str(tgt)] = round(acc, 4)
 
     results.to_csv('../eval/results/chemical/classical' + '_normalise' * normalize_dataset + '_normalise_sep'
-                   * normalize_sep + '_balance' * balance + '.csv', ';')
+                   * normalize_sep + '_balance' * balance + '_alltarget' * use_all_target + '.csv', ';')
 
     # plot the results
     for method_name in methods:
@@ -97,7 +109,7 @@ def main():
     plt.legend()
     plt.axis([0, 10, 0, 1])
     plt.savefig('../eval/results/chemical/classical' + '_normalise' * normalize_dataset + '_normalise_sep' *
-                normalize_sep + '_balance' * balance + '.png')
+                normalize_sep + '_balance' * balance + '_alltarget' * use_all_target + '.png')
 
 
 if __name__ == "__main__":

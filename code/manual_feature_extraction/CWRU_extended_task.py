@@ -44,6 +44,7 @@ def main():
                'MEDA': MEDA.MEDA()
                }
     normalize = True
+    partial = [0, 1, 4]
 
     # Initialise output files
     results = pd.DataFrame(columns=methods.keys())
@@ -140,6 +141,12 @@ def main():
                         target_normalised_train = np.asarray(ts_train_t)
                         target_normalised_eval = np.asarray(ts_eval_t)
 
+                    classes = np.array(partial * target_normalised_train.shape[0]).reshape(
+                        target_normalised_train.shape[0], len(partial))
+                    lbl_train_t = np.asarray(lbl_train_t)
+                    target_normalised_train = target_normalised_train[np.any(np.expand_dims(lbl_train_t, 1) == classes,
+                                                                             axis=1)]
+
                     methods[method].fit(source_normalised, np.asarray(lbl_train)[:, np.newaxis],
                                         target_normalised_train)
                     predictions_t = methods[method].inference(target_normalised_eval)
@@ -147,7 +154,8 @@ def main():
                     results[method][src_domain + '->' + tgt_domain] = accuracy_t
                     print('accuracy of ' + method + ' on domain shift ', src_domain, '->', tgt_domain, ': ', accuracy_t)
 
-    results.to_csv('../eval/results/CWRU/' + 'manual_features_' + 'normalize' * normalize + '.csv', ';')
+    results.to_csv('../eval/results/CWRU/' + 'manual_features_' + 'normalize' * normalize + '_missing' +
+                   str(10-len(partial)) + '_classes.csv', ';')
 
 
 if __name__ == '__main__':

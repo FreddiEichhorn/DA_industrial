@@ -237,12 +237,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--lr", help="learning rate of the model", default=0.001, required=False)
     parser.add_argument("--weight_decay", default=0, required=False)
-    parser.add_argument("--num_epochs", default=1000, required=False, type=int)
+    parser.add_argument("--num_epochs", default=600, required=False, type=int)
     parser.add_argument("--regularize", default=True, required=False)
     parser.add_argument("--stratify", default=True, required=False)
     parser.add_argument("--kernel_type", default="rbf", required=False)
+    parser.add_argument("--n_missing_classes", default=0, required=False, type=int)
     parser.add_argument("--device", default="cuda:0", required=False)
-    parser.add_argument("--weight_mmd", default=10, required=False, type=float)
+    parser.add_argument("--weight_mmd", default=5, required=False, type=float)
     parser.add_argument("--weight_reg", default=.7, required=False, type=float)
     args = parser.parse_args()
     lr = args.lr
@@ -251,6 +252,7 @@ if __name__ == "__main__":
     regularize = args.regularize
     stratify = args.stratify
     kernel_type = args.kernel_type
+    n_classes = 10 - args.n_missing_classes
     weight_mmd = float(args.weight_mmd)
     weight_reg = float(args.weight_reg)
 
@@ -277,7 +279,10 @@ if __name__ == "__main__":
                 loader_train_s = CWRU_loader_extended_task.StratifiedDataLoader(dataset_s, 20)
 
             # Initialise target training dataset
-            dataset_t = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm_target], normalise=True, train=True)
+            partial = ['healthy', 'B0_07', 'IR0_07', 'OR0_07', 'B0_14', 'IR0_14', 'OR0_14', 'IR0_21', 'B0_21',
+                       'OR0_21'][:n_classes]
+            dataset_t = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm_target], normalise=True, train=True,
+                                                       partial_da=partial)
 
             sampler = torch.utils.data.WeightedRandomSampler(dataset_t.find_sampling_weights(), len(dataset_t))
             loader_train_t = DataLoader(dataset_t, batch_size=20, shuffle=False, num_workers=1, sampler=sampler,
@@ -335,4 +340,5 @@ if __name__ == "__main__":
 
     results.to_csv('../eval/results/CWRU/' + 'mmd' + '_lr' + str(lr) + '_epochs' + str(num_epochs) + '_weightdecay' +
                    str(weight_decay) + '_' + kernel_type + '_reg' * regularize + '_strat' * stratify + '_weight_mmd' +
-                   str(weight_mmd) + '_weight_reg' + str(weight_reg) + '.csv', ';')
+                   str(weight_mmd) + '_weight_reg' + str(weight_reg) + '_' + 'missing' + str(10-n_classes) + 'classes' +
+                   '.csv', ';')

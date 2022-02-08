@@ -17,6 +17,7 @@ import torch
 datapath = '../../data/CWRU/deep_features/'
 normalize = True
 use_train_test_split = True
+partial = [0, 1, 4]
 #source_domains = ['Caltech10_SURF_L10.mat', 'amazon_SURF_L10.mat', 'webcam_SURF_L10.mat', 'dslr_SURF_L10.mat']
 #target_domains = ['Caltech10_SURF_L10.mat', 'amazon_SURF_L10.mat', 'webcam_SURF_L10.mat', 'dslr_SURF_L10.mat']
 source_domains = ['src2_1730.mat', 'src2_1750.mat', 'src2_1772.mat', 'src2_1797.mat']
@@ -64,9 +65,6 @@ for source_domain in source_domains:
             source_labels = source_data['labels']
             target_labels = target_data['labels']
 
-            if np.min(source_labels) == 0:
-                source_labels += 1
-                target_labels += 1
             if methods[method_name] is not None:
                 if normalize:
                     source_normalised = methods[method_name].normalise_features(source_data)
@@ -79,9 +77,14 @@ for source_domain in source_domains:
                     choice_arr = np.random.choice(a=[False, True], size=target_normalised.shape[0], p=[.15, 1-.15])
                     eval_split = target_normalised[np.logical_not(choice_arr)]
                     target_normalised = target_normalised[choice_arr]
+                    target_labels_train = target_labels[choice_arr]
                     target_labels = target_labels[np.logical_not(choice_arr)]
                 else:
                     eval_split = target_normalised
+                    target_labels_train = target_labels
+
+                classes = np.array(partial * target_normalised.shape[0]).reshape(target_normalised.shape[0], len(partial))
+                target_normalised = target_normalised[np.any(target_labels_train == classes, axis=1)]
 
                 methods[method_name].fit(source_normalised, source_labels, target_normalised)
                 predict_t = methods[method_name].inference(eval_split)
@@ -101,4 +104,4 @@ for source_domain in source_domains:
 results = results.append(pd.DataFrame(index=['Average']))
 results[[False] * (len(results)-1) + [True]] = round(results.mean(0), 4)
 
-results.to_csv('../eval/results/chemical.csv', sep=';')
+results.to_csv('../eval/results/CWRU_DeCaf_missing' + str(10-len(partial)) + '_classes.csv', sep=';')

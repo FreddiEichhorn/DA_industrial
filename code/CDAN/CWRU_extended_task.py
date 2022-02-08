@@ -375,6 +375,7 @@ if __name__ == "__main__":
     parser.add_argument("--stratify", default=True, required=False)
     parser.add_argument("--device", default="cuda:0", required=False)
     parser.add_argument("--partial_da", default=False, required=False)
+    parser.add_argument("--n_missing_classes", default=0, required=False, type=int)
     parser.add_argument("--type_mdc", default="adversary", required=False, help="adversary, rbf or linear")
     parser.add_argument("--weight_cdc", default=.6, required=False, type=float)
     parser.add_argument("--weight_mdc", default=.3, required=False, type=float)
@@ -387,6 +388,7 @@ if __name__ == "__main__":
     stratify = args.stratify
     partial_da = args.partial_da
     type_mdc = args.type_mdc
+    n_classes = 10 - args.n_missing_classes
     weight_cdc = float(args.weight_cdc)
     weight_mdc = float(args.weight_mdc)
     weight_reg = float(args.weight_reg)
@@ -415,7 +417,10 @@ if __name__ == "__main__":
                 loader_train_s = CWRU_loader_extended_task.StratifiedDataLoader(dataset_s, 20)
 
             # Initialise target training dataset
-            dataset_t = CWRU_loader_extended_task.CWRU(sample_length, True, partial_da, [rpm_target], train=True)
+            partial = ['healthy', 'B0_07', 'IR0_07', 'OR0_07', 'B0_14', 'IR0_14', 'OR0_14', 'IR0_21', 'B0_21',
+                       'OR0_21'][:n_classes]
+            dataset_t = CWRU_loader_extended_task.CWRU(sample_length, rpms=[rpm_target], normalise=True, train=True,
+                                                       partial_da=partial)
 
             sampler = torch.utils.data.WeightedRandomSampler(dataset_t.find_sampling_weights(), len(dataset_t))
             loader_train_t = DataLoader(dataset_t, batch_size=20, shuffle=False, num_workers=1, sampler=sampler,
@@ -493,5 +498,5 @@ if __name__ == "__main__":
                 results[rpm + '->' + rpm_target][rpm_eval] = acc_target
 
     results.to_csv('../eval/results/CWRU/' + 'cdc' + rpm + '_lr' + str(lr) + '_epochs' + str(num_epochs) + '_reg' +
-                   str(weight_reg) + '_cdcwght' + str(weight_cdc) + '_' + type_mdc + '_mdcwght' + str(weight_mdc) +
-                   '.csv', ';')
+                   str(weight_reg) + '_cdcwght' + str(weight_cdc) + '_' + type_mdc + '_mdcwght' + str(weight_mdc) + '_'
+                   + 'missing' + str(10-n_classes) + 'classes'+ '.csv', ';')

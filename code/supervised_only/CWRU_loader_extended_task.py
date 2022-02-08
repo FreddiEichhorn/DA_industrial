@@ -168,12 +168,10 @@ class CWRU(Dataset):
                     self.data[fault_location + '_' + fault_size].append(torch.Tensor(t_list))
                     self.lengths[fault_location + '_' + fault_size] += t_list.shape[1]
 
-        for idx in partial_da:
-            if idx not in self.data.keys():
+        for idx in list(self.data.keys()):
+            if idx not in partial_da:
                 self.data.pop(idx)
-            if idx not in self.lengths.keys():
                 self.lengths.pop(idx)
-            if idx not in self.gts.keys():
                 self.gts.pop(idx)
 
     def __len__(self):
