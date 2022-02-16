@@ -20,10 +20,11 @@ class ChemicalLoader(Dataset):
             self.data = self.data - self.data.sum(0) / self.data.shape[0]
             self.data = self.data / np.sqrt((self.data**2).sum(0) / self.data.shape[0])
 
+        # TODO: train-test split from sklearn
         if train is not None:
             if seed is not None:
                 np.random.seed(seed)
-            choice_arr = np.random.choice(a=[False, True], size=self.data.shape[0], p=[.5, 1 - .5])
+            choice_arr = np.random.choice(a=[False, True], size=self.data.shape[0], p=[.6, 1 - .6])
             if train:
                 self.data = self.data[choice_arr]
                 self.gt = self.gt[choice_arr]
@@ -58,7 +59,7 @@ class ChemicalLoader(Dataset):
             self.gt = gt_2
 
     def __getitem__(self, item):
-        return {'data': torch.Tensor(self.data[item]), 'gt': torch.Tensor(self.gt[item])}
+        return {'data': torch.Tensor(self.data[item]), 'gt': torch.LongTensor([self.gt[item]])}
 
     def __len__(self):
         return self.data.shape[0]
@@ -68,6 +69,10 @@ class ChemicalLoader(Dataset):
         for i in range(1, max(self.gt)):
             weights = weights + [(self.gt == i).sum() / (self.gt == 0).sum()] * (self.gt == i).sum()
         return weights
+
+    def extend_dataset(self, size):
+        self.gt = np.hstack([self.gt] * int(size / self.data.shape[0] + 1))
+        self.data = np.vstack([self.data] * int(size / self.data.shape[0] + 1))
 
 
 def main():

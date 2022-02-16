@@ -7,6 +7,8 @@
 import numpy as np
 import scipy.io
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn import metrics
+from sklearn import svm
 
 import GFK
 
@@ -46,12 +48,57 @@ class MEDA:
         else:
             self.lamb = 10
 
+        if 'mu' in options.keys():
+            self.mu = options['mu']
+            self.est_mu = False
+        else:
+            self.mu = .7
+            self.est_mu = True
+
         # These are estimated using the fit method
         self.sq_g = None
         self.x = None
         self.beta = None
         self.clf = clf
         self.min_classes = None
+
+    @staticmethod
+    def proxy_a_distance(source_x, target_x):
+        """
+        Compute the Proxy-A-Distance of a source/target representation
+        """
+        nb_source = np.shape(source_x)[0]
+        nb_target = np.shape(target_x)[0]
+        train_x = np.vstack((source_x, target_x))
+        train_y = np.hstack((np.zeros(nb_source, dtype=int), np.ones(nb_target, dtype=int)))
+        clf = svm.LinearSVC(random_state=0)
+        clf.fit(train_x, train_y)
+        y_pred = clf.predict(train_x)
+        error = metrics.mean_absolute_error(train_y, y_pred)
+        dist = 2 * (1 - 2 * error)
+        return dist
+
+    def estimate_mu(self, _x1, _y1, _x2, _y2):
+        adist_m = self.proxy_a_distance(_x1, _x2)
+        C = len(np.unique(_y1))
+        epsilon = 1e-3
+        list_adist_c = []
+        for i in range(1, C + 1):
+            ind_i, ind_j = np.where(_y1 == i), np.where(_y2 == i)
+            xsi = _x1[ind_i[0], :]
+            xtj = _x2[ind_j[0], :]
+            if len(xsi) == 0 or len(xtj) == 0:
+                list_adist_c.append(2.0)
+            else:
+                adist_i = self.proxy_a_distance(xsi, xtj)
+                list_adist_c.append(adist_i)
+        adist_c = sum(list_adist_c) / C
+        self.mu = adist_c / (adist_c + adist_m)
+        if self.mu > 1:
+            self.mu = 1
+        if self.mu < epsilon:
+            self.mu = 0
+        return self.mu
 
     @staticmethod
     def kernel(ker, X, X2, gamma):
@@ -140,7 +187,6 @@ class MEDA:
         E = np.diagflat(np.vstack((np.ones((n_source, 1)), np.zeros((n_target, 1)))))
         for iteration in range(1, self.t + 1):
             # estimating mu keeps throwing warnings and thus we just fix mu
-            mu = .7
             e = np.vstack((1 / n_source * np.ones((n_source, 1)), -1 / n_target * np.ones((n_target, 1))))
             m = e * e.T * n_classes
             n = 0
@@ -152,7 +198,9 @@ class MEDA:
                 e[tuple(inds)] = -1 / (len(cls[np.where(cls == c)]) + 1e-9)
                 e[np.isinf(e)] = 0
                 n += np.dot(e, e.T)
-            m = (1 - mu) * m + mu * n
+            if self.est_mu:
+                self.mu = self.estimate_mu(xs_new.T, ys, xt_new.T, cls)
+            m = (1 - self.mu) * m + self.mu * n
             m /= np.linalg.norm(m, 'fro') + 1e-9
             left = np.dot(E + self.lamb * m + self.rho * l, k) + self.eta * np.eye(n_source+n_target, n_source+n_target)
             self.beta = np.dot(np.linalg.inv(left), np.dot(E, yy))

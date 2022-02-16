@@ -41,22 +41,34 @@ def main():
                'JGSA + 5NN': JGSA.JGSA(clf=KNeighborsClassifier(5)),
                #'JGSA + SVM': JGSA.JGSA(clf=svm.SVC(gamma=2, C=1)),
                #'JGSA + DT': JGSA.JGSA(clf=DecisionTreeClassifier(max_depth=5)),
-               #'MEDA + 1NN': MEDA.MEDA(),
-               'MEDA + SVM': MEDA.MEDA(clf=svm.SVC(gamma=2, C=1)),
+               'MEDA + 1NN': MEDA.MEDA(),
+               'MEDA + SVM': MEDA.MEDA(clf=svm.SVC(gamma='scale', C=2), options={'rho': 1.0, 'eta': .1, 'gamma': 1,
+                                                                                 'lamb': 8, 'mu': .7}),
                'MEDA + MLP': MEDA.MEDA(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(15, ), random_state=1,
-                                                         solver='sgd', max_iter=600))
+                                                         solver='sgd', max_iter=1000), options={'rho': 1.0, 'eta': .1,
+                                                                                               'gamma': 1, 'lamb': 8,
+                                                                                               'mu': .7})
                }
     results = pd.DataFrame(columns=methods.keys())
     normalize_dataset = False
-    seed = 42
+    seed = 51
     normalize_sep = False
-    balance = True
-    use_all_target = False
+    balance = False
+    use_all_target = True
+    use_batch2 = False
 
     dataset_s1 = chemical_loader.ChemicalLoader(1, train=True, normalise=normalize_dataset, balance=balance, seed=seed)
     dataset_s2 = chemical_loader.ChemicalLoader(2, train=True, normalise=normalize_dataset, balance=balance, seed=seed)
-    data_s = np.vstack((dataset_s1.data, dataset_s2.data))
-    gt_s = np.hstack((dataset_s1.gt, dataset_s2.gt))
+
+    if use_batch2:
+        data_s = np.vstack((dataset_s1.data, dataset_s2.data))
+        gt_s = np.hstack((dataset_s1.gt, dataset_s2.gt))
+        first_tgt_domain = 2
+    else:
+        data_s = dataset_s1.data
+        gt_s = dataset_s1.gt
+        first_tgt_domain = 1
+
     data_t_train = np.zeros((0, 128))
 
     for tgt in range(1, 11):
@@ -74,12 +86,12 @@ def main():
         results = results.append(pd.DataFrame(index=['batch' + str(tgt)]))
         for method_name in methods:
             if methods[method_name] is None:
-
+                # TODO: Normalise for this
                 clf = KNeighborsClassifier(1)
                 clf.fit(data_s, gt_s)
                 predict_t = clf.predict(dataset_t_eval.data)
 
-            elif tgt > 2:
+            elif tgt > first_tgt_domain:
 
                 if normalize_sep:
                     src_norm = methods[method_name].normalise_features({'fts': data_s})

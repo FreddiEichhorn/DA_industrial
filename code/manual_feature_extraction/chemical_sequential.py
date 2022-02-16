@@ -22,15 +22,47 @@ from sklearn.neighbors import KNeighborsClassifier
 import matplotlib.pyplot as plt
 from sklearn import svm
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import BaggingClassifier
 from sklearn.neural_network import MLPClassifier
+
+
+def balance_dataset(data, gt, seed=None):
+    data = data.copy()
+    gt = gt.copy()
+
+    # Find class with most samples
+    largest_class = 0
+    for i in range(int(max(gt[:, 0]) + 1)):
+        if (gt == i).sum() > largest_class:
+            largest_class = (gt == i).sum()
+
+    # oversample all classes smaller than largest
+    data2 = np.zeros((0, data.shape[1]))
+    gt_2 = np.zeros((0, 1))
+    for cls in range(int(max(gt[:, 0]) + 1)):
+        data_cls = data[gt[:, 0] == cls]
+
+        while data_cls.shape[0] * 2 < largest_class:
+            data_cls = np.vstack((data_cls, data_cls))
+
+        p = (largest_class - data_cls.shape[0]) / data_cls.shape[0]
+        if seed is not None:
+            np.random.seed(seed)
+        choice_arr = np.random.choice(a=[False, True], size=data_cls.shape[0], p=[1 - p, p])
+        data_cls = np.vstack((data_cls, data_cls[choice_arr]))
+        data2 = np.vstack((data2, data_cls))
+        gt_2 = np.vstack((gt_2, np.ones((data_cls.shape[0], 1)) * cls))
+    balanced_data = data2
+    balanced_gt = gt_2
+    return balanced_data, balanced_gt
 
 
 def main():
     methods = {'1NN': None,
                #'SA + 1NN': SA.SA(),
-               #'SA + 5NN': SA.SA(clf=KNeighborsClassifier(5)),
-               'SA + MLP': SA.SA(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(100, 15), random_state=1,
-                                                   solver='sgd', max_iter=600)),
+               'SA + 5NN': SA.SA(clf=KNeighborsClassifier(5)),
+               #'SA + MLP': SA.SA(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(100, 15), random_state=1,
+               #                                    solver='sgd', max_iter=600)),
                #'SA + SVM': SA.SA(clf=svm.SVC(gamma=2, C=1)),
                #'SA + DT': SA.SA(clf=DecisionTreeClassifier(max_depth=5)),
                #'PCA_src + 1NN': SA.PCASource(),
@@ -39,36 +71,45 @@ def main():
                #'PCA_tgt + 1NN': SA.PCATarget(),
                #'PCA_tgt + SVM': SA.PCATarget(clf=svm.SVC(gamma=2, C=1)),
                #'PCA_tgt + DT': SA.PCATarget(clf=DecisionTreeClassifier(max_depth=5)),
-               #'GFK + 1NN': GFK.GFK(),
+               'GFK + 1NN': GFK.GFK(),
                #'GFK + 5NN': GFK.GFK(clf=KNeighborsClassifier(5)),
-               'GFK + MLP': GFK.GFK(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(100, 15), random_state=1,
-                                                      solver='sgd', max_iter=600)),
+               #'GFK + MLP': GFK.GFK(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(100, 15), random_state=1,
+               #                                       solver='sgd', max_iter=600)),
                #'GFK + SVM': GFK.GFK(clf=svm.SVC(gamma=2, C=1)),
+               #'GFK + SVM2': GFK.GFK(clf=svm.SVC(gamma=2, C=1)),
                #'GFK + DT': GFK.GFK(clf=DecisionTreeClassifier(max_depth=5)),
                #'JGSA + 1NN': JGSA.JGSA(),
                'JGSA + 5NN': JGSA.JGSA(clf=KNeighborsClassifier(5)),
                #'JGSA + MLP': JGSA.JGSA(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(15,), random_state=1,
                                                          #solver='sgd', max_iter=400)),
                #'JGSA + SVM': JGSA.JGSA(clf=svm.SVC(gamma=2, C=1)),
+               #'JGSA + SVM2': JGSA.JGSA(clf=svm.SVC(gamma=2, C=1)),
                #'JGSA + DT': JGSA.JGSA(clf=DecisionTreeClassifier(max_depth=5)),
                #'MEDA + 1NN': MEDA.MEDA(),
                #'MEDA + 5NN': MEDA.MEDA(clf=KNeighborsClassifier(5)),
-               'MEDA + SVM': MEDA.MEDA(clf=svm.SVC(gamma=2, C=1)),
-               'MEDA + MLP': MEDA.MEDA(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(100, 15), random_state=1,
-                                                         solver='sgd', max_iter=600))
+               'MEDA + SVM': MEDA.MEDA(clf=svm.SVC(gamma='scale', C=2), options={'rho': 1.0, 'eta': .1, 'gamma': 1,
+                                                                                 'lamb': 8, 'mu': .7}),
                }
 
     results = pd.DataFrame(columns=methods.keys())
     normalize_dataset = False
     normalize_sep = False
+    use_batch2 = True
     seed = 42
     balance = True
-    last_x = 3000
+    rebalance = False
+    last_x = 15000
 
     dataset_s1 = chemical_loader.ChemicalLoader(1, train=True, normalise=normalize_dataset, balance=balance, seed=seed)
     dataset_s2 = chemical_loader.ChemicalLoader(2, train=True, normalise=normalize_dataset, balance=balance, seed=seed)
-    data_s = dict.fromkeys(methods.keys(), np.vstack((dataset_s1.data, dataset_s2.data)))
-    gt_s = dict.fromkeys(methods.keys(), np.hstack((dataset_s1.gt, dataset_s2.gt)))
+    if use_batch2:
+        data_s = dict.fromkeys(methods.keys(), np.vstack((dataset_s1.data, dataset_s2.data)))
+        gt_s = dict.fromkeys(methods.keys(), np.hstack((dataset_s1.gt, dataset_s2.gt)))
+        first_tgt_domain = 2
+    else:
+        data_s = dict.fromkeys(methods.keys(), dataset_s1.data)
+        gt_s = dict.fromkeys(methods.keys(), dataset_s1.gt)
+        first_tgt_domain = 1
 
     for tgt in range(1, 11):
         dataset_t_train = chemical_loader.ChemicalLoader(tgt, train=True, normalise=normalize_dataset, balance=balance,
@@ -85,7 +126,7 @@ def main():
                     clf.fit(data_s[method_name], gt_s[method_name])
                 predict_t = clf.predict(dataset_t_eval.data)
 
-            elif tgt > 2:
+            elif tgt > first_tgt_domain:
 
                 if normalize_sep:
                     src_norm = methods[method_name].normalise_features({'fts': data_s[method_name]})
@@ -100,22 +141,27 @@ def main():
                                                                                  dataset_t_eval.data.shape[0])]
                     tgt_norm_train = all_normalised[(data_s[method_name].shape[0] + dataset_t_eval.data.shape[0]):]
 
-                if last_x > src_norm.shape[0]:
-                    methods[method_name].fit(src_norm[:last_x], np.expand_dims(gt_s[method_name][:last_x], 1),
-                                             tgt_norm_train)
+                if rebalance:
+                    src_norm_reb, gt_s_reb = balance_dataset(src_norm, np.expand_dims(gt_s[method_name], 1), seed)
+                    methods[method_name].fit(src_norm_reb, gt_s_reb, tgt_norm_train)
                 else:
                     methods[method_name].fit(src_norm, np.expand_dims(gt_s[method_name], 1), tgt_norm_train)
                 predict_t = methods[method_name].inference(tgt_norm_eval)
 
                 data_s[method_name] = np.vstack((dataset_t_train.data, data_s[method_name]))
                 gt_s[method_name] = np.hstack((methods[method_name].inference(tgt_norm_train), gt_s[method_name]))
+                # gt_s[method_name] = np.hstack((dataset_t_train.gt, gt_s[method_name]))
+                if len(data_s[method_name]) > last_x:
+                    data_s[method_name] = data_s[method_name][:last_x]
+                    gt_s[method_name] = gt_s[method_name][:last_x]
 
             acc = (predict_t == dataset_t_eval.gt).sum() / len(dataset_t_eval)
             print('batch1+2 --> batch' + str(tgt) + ' using ' + method_name + ' accuracy: ' + str(round(acc, 4)))
             results[method_name]['batch' + str(tgt)] = round(acc, 4)
 
     results.to_csv('../eval/results/chemical/classical_sequential' + '_normalise' * normalize_dataset + '_normalise_sep'
-                   * normalize_sep + '_balance' * balance + '_usinglatest' + str(last_x) + 'samples.csv', ';')
+                   * normalize_sep + '_balance' * balance + '_usinglatest' + str(last_x) + 'samples' + '_dropbatch1' *
+                   (not use_batch2) + '_rebalance' * rebalance + '.csv', ';')
 
     # plot the results
     for method_name in methods:
@@ -123,7 +169,8 @@ def main():
     plt.legend()
     plt.axis([0, 10, 0, 1])
     plt.savefig('../eval/results/chemical/classical_sequential' + '_normalise' * normalize_dataset + '_normalise_sep' *
-                normalize_sep + '_balance' * balance + '_usinglatest' + str(last_x) + 'samples.png')
+                normalize_sep + '_balance' * balance + '_usinglatest' + str(last_x) + 'samples' + '_dropbatch1' *
+                (not use_batch2) + '_rebalance' * rebalance + '.png')
 
 
 if __name__ == "__main__":
