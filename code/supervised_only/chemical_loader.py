@@ -2,6 +2,7 @@ import torch
 from torch.utils.data import Dataset
 import pandas as pd
 import numpy as np
+from sklearn.model_selection import train_test_split
 
 
 class ChemicalLoader(Dataset):
@@ -20,18 +21,24 @@ class ChemicalLoader(Dataset):
             self.data = self.data - self.data.sum(0) / self.data.shape[0]
             self.data = self.data / np.sqrt((self.data**2).sum(0) / self.data.shape[0])
 
-        # TODO: train-test split from sklearn
+        data_train, data_test, gt_train, gt_test = train_test_split(self.data, self.gt, random_state=seed,
+                                                                    train_size=.6)
+        self.data_train = data_train
+        self.gt_train = gt_train
+        self.data_test = data_test
+        self.gt_test = gt_test
+        '''
         if train is not None:
             if seed is not None:
                 np.random.seed(seed)
-            choice_arr = np.random.choice(a=[False, True], size=self.data.shape[0], p=[.6, 1 - .6])
+            choice_arr = np.random.choice(a=[False, True], size=self.data.shape[0], p=[.5, 1 - .5])
             if train:
                 self.data = self.data[choice_arr]
                 self.gt = self.gt[choice_arr]
             else:
                 self.data = self.data[np.logical_not(choice_arr)]
                 self.gt = self.gt[np.logical_not(choice_arr)]
-
+        '''
         if balance:
             # Find class with most samples
             largest_class = 0

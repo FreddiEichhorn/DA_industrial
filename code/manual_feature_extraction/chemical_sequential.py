@@ -24,6 +24,7 @@ from sklearn import svm
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import BaggingClassifier
 from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
 
 
 def balance_dataset(data, gt, seed=None):
@@ -60,7 +61,7 @@ def balance_dataset(data, gt, seed=None):
 def main():
     methods = {'1NN': None,
                #'SA + 1NN': SA.SA(),
-               'SA + 5NN': SA.SA(clf=KNeighborsClassifier(5)),
+               #'SA + 5NN': SA.SA(clf=KNeighborsClassifier(5)),
                #'SA + MLP': SA.SA(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(100, 15), random_state=1,
                #                                    solver='sgd', max_iter=600)),
                #'SA + SVM': SA.SA(clf=svm.SVC(gamma=2, C=1)),
@@ -71,7 +72,7 @@ def main():
                #'PCA_tgt + 1NN': SA.PCATarget(),
                #'PCA_tgt + SVM': SA.PCATarget(clf=svm.SVC(gamma=2, C=1)),
                #'PCA_tgt + DT': SA.PCATarget(clf=DecisionTreeClassifier(max_depth=5)),
-               'GFK + 1NN': GFK.GFK(),
+               #'GFK + 1NN': GFK.GFK(),
                #'GFK + 5NN': GFK.GFK(clf=KNeighborsClassifier(5)),
                #'GFK + MLP': GFK.GFK(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(100, 15), random_state=1,
                #                                       solver='sgd', max_iter=600)),
@@ -79,98 +80,95 @@ def main():
                #'GFK + SVM2': GFK.GFK(clf=svm.SVC(gamma=2, C=1)),
                #'GFK + DT': GFK.GFK(clf=DecisionTreeClassifier(max_depth=5)),
                #'JGSA + 1NN': JGSA.JGSA(),
-               'JGSA + 5NN': JGSA.JGSA(clf=KNeighborsClassifier(5)),
+               #'JGSA + 5NN': JGSA.JGSA(clf=KNeighborsClassifier(5)),
                #'JGSA + MLP': JGSA.JGSA(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(15,), random_state=1,
                                                          #solver='sgd', max_iter=400)),
                #'JGSA + SVM': JGSA.JGSA(clf=svm.SVC(gamma=2, C=1)),
                #'JGSA + SVM2': JGSA.JGSA(clf=svm.SVC(gamma=2, C=1)),
                #'JGSA + DT': JGSA.JGSA(clf=DecisionTreeClassifier(max_depth=5)),
-               #'MEDA + 1NN': MEDA.MEDA(),
+               'MEDA + 1NN': MEDA.MEDA(options={'mu': .7, 't': 20, 'lamb': 0, 'gamma': 1.6, 'rho': 0}),
                #'MEDA + 5NN': MEDA.MEDA(clf=KNeighborsClassifier(5)),
-               'MEDA + SVM': MEDA.MEDA(clf=svm.SVC(gamma='scale', C=2), options={'rho': 1.0, 'eta': .1, 'gamma': 1,
-                                                                                 'lamb': 8, 'mu': .7}),
+               #'MEDA + SVM': MEDA.MEDA(clf=svm.SVC(gamma='scale', C=2), options={'mu': .7, 't': 20, 'lamb': 2,
+               #                                                                  'gamma': 1.6, 'rho': 0}),
                }
 
     results = pd.DataFrame(columns=methods.keys())
-    normalize_dataset = False
-    normalize_sep = False
-    use_batch2 = True
-    seed = 42
-    balance = True
-    rebalance = False
     last_x = 15000
 
-    dataset_s1 = chemical_loader.ChemicalLoader(1, train=True, normalise=normalize_dataset, balance=balance, seed=seed)
-    dataset_s2 = chemical_loader.ChemicalLoader(2, train=True, normalise=normalize_dataset, balance=balance, seed=seed)
-    if use_batch2:
-        data_s = dict.fromkeys(methods.keys(), np.vstack((dataset_s1.data, dataset_s2.data)))
-        gt_s = dict.fromkeys(methods.keys(), np.hstack((dataset_s1.gt, dataset_s2.gt)))
-        first_tgt_domain = 2
-    else:
-        data_s = dict.fromkeys(methods.keys(), dataset_s1.data)
-        gt_s = dict.fromkeys(methods.keys(), dataset_s1.gt)
-        first_tgt_domain = 1
+    train_test_split = False
+
+    dataset_s = chemical_loader.ChemicalLoader(1, train=None, normalise=False, balance=False, seed=None)
+
+    # scaling for 1NN baseline method
+    scaler = StandardScaler()
+    scaler.fit(dataset_s.data)
+
+    data_s = dict.fromkeys(methods.keys(), dataset_s.data)
+    gt_s = dict.fromkeys(methods.keys(), dataset_s.gt)
+    first_tgt_domain = 1
 
     for tgt in range(1, 11):
-        dataset_t_train = chemical_loader.ChemicalLoader(tgt, train=True, normalise=normalize_dataset, balance=balance,
-                                                         seed=seed)
-        dataset_t_eval = chemical_loader.ChemicalLoader(tgt, train=False, normalise=normalize_dataset, balance=balance,
-                                                        seed=seed)
+        dataset_t = chemical_loader.ChemicalLoader(tgt, train=True, normalise=False, balance=False, seed=None)
 
         results = results.append(pd.DataFrame(index=['batch' + str(tgt)]))
 
         for method_name in methods:
+
+            if train_test_split:
+                data_t_train = dataset_t.data_train
+                data_t_test = dataset_t.data_test
+                gt_t_test = dataset_t.gt_test
+                gt_t_train = dataset_t.gt_train
+            else:
+                data_t_train = dataset_t.data
+                data_t_test = dataset_t.data
+                gt_t_test = dataset_t.gt
+
             if methods[method_name] is None:
-                if tgt == 1:
-                    clf = KNeighborsClassifier(1)
-                    clf.fit(data_s[method_name], gt_s[method_name])
-                predict_t = clf.predict(dataset_t_eval.data)
+
+                clf = KNeighborsClassifier(1)
+                scaler.fit(data_s[method_name])
+                clf.fit(scaler.transform(data_s[method_name]), gt_s[method_name])
+                scaler.fit(data_t_train)
+                data_t_test_norm = scaler.transform(data_t_test)
+
+                predictions = clf.predict(data_t_test_norm)
 
             elif tgt > first_tgt_domain:
+                scaler.fit(data_s[method_name])
+                data_s_norm = scaler.transform(data_s[method_name])
+                scaler.fit(data_t_train)
+                data_t_train_norm = scaler.transform(data_t_train)
+                data_t_test_norm = scaler.transform(data_t_test)
+                methods[method_name].fit(data_s_norm, np.expand_dims(gt_s[method_name], 1), data_t_train_norm)
+                predictions = methods[method_name].inference(data_t_test_norm)
 
-                if normalize_sep:
-                    src_norm = methods[method_name].normalise_features({'fts': data_s[method_name]})
-                    tgt_norm_eval = methods[method_name].normalise_features({'fts': dataset_t_eval.data})
-                    tgt_norm_train = methods[method_name].normalise_features({'fts': dataset_t_train.data})
-                else:
-                    all_normalised = methods[method_name].normalise_features({'fts': np.vstack((data_s[method_name],
-                                                                                                dataset_t_eval.data,
-                                                                                                dataset_t_train.data))})
-                    src_norm = all_normalised[:data_s[method_name].shape[0]]
-                    tgt_norm_eval = all_normalised[data_s[method_name].shape[0]:(data_s[method_name].shape[0] +
-                                                                                 dataset_t_eval.data.shape[0])]
-                    tgt_norm_train = all_normalised[(data_s[method_name].shape[0] + dataset_t_eval.data.shape[0]):]
+                data_s[method_name] = np.vstack((data_t_train, data_s[method_name]))
+                gt_s[method_name] = np.hstack((predictions, gt_s[method_name]))
 
-                if rebalance:
-                    src_norm_reb, gt_s_reb = balance_dataset(src_norm, np.expand_dims(gt_s[method_name], 1), seed)
-                    methods[method_name].fit(src_norm_reb, gt_s_reb, tgt_norm_train)
-                else:
-                    methods[method_name].fit(src_norm, np.expand_dims(gt_s[method_name], 1), tgt_norm_train)
-                predict_t = methods[method_name].inference(tgt_norm_eval)
-
-                data_s[method_name] = np.vstack((dataset_t_train.data, data_s[method_name]))
-                gt_s[method_name] = np.hstack((methods[method_name].inference(tgt_norm_train), gt_s[method_name]))
-                # gt_s[method_name] = np.hstack((dataset_t_train.gt, gt_s[method_name]))
                 if len(data_s[method_name]) > last_x:
                     data_s[method_name] = data_s[method_name][:last_x]
                     gt_s[method_name] = gt_s[method_name][:last_x]
 
-            acc = (predict_t == dataset_t_eval.gt).sum() / len(dataset_t_eval)
+            acc = (predictions == gt_t_test).sum() / len(gt_t_test)
             print('batch1+2 --> batch' + str(tgt) + ' using ' + method_name + ' accuracy: ' + str(round(acc, 4)))
             results[method_name]['batch' + str(tgt)] = round(acc, 4)
 
-    results.to_csv('../eval/results/chemical/classical_sequential' + '_normalise' * normalize_dataset + '_normalise_sep'
-                   * normalize_sep + '_balance' * balance + '_usinglatest' + str(last_x) + 'samples' + '_dropbatch1' *
-                   (not use_batch2) + '_rebalance' * rebalance + '.csv', ';')
+    # Compute average performance
+    results = results.append(pd.DataFrame(index=['Average']))
+    for method_name in results.keys():
+        avg = (results[method_name].sum(axis=0, skipna=True) - 1) / 9
+        results[method_name]['Average'] = avg
+        print('Average of ' + method_name + ' ' + str(round(avg, 4)))
+
+    results.to_csv('../eval/results/chemical/classical_sequential' + '.csv', ';')
 
     # plot the results
     for method_name in methods:
         plt.plot(results[method_name], label=method_name)
     plt.legend()
     plt.axis([0, 10, 0, 1])
-    plt.savefig('../eval/results/chemical/classical_sequential' + '_normalise' * normalize_dataset + '_normalise_sep' *
-                normalize_sep + '_balance' * balance + '_usinglatest' + str(last_x) + 'samples' + '_dropbatch1' *
-                (not use_batch2) + '_rebalance' * rebalance + '.png')
+    plt.savefig('../eval/results/chemical/classical_sequential' + '.png')
 
 
 if __name__ == "__main__":

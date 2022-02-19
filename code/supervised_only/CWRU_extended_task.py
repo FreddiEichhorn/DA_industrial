@@ -380,7 +380,7 @@ if __name__ == "__main__":
             model.load_state_dict(torch.load(weight_path))
 
         loss_function = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
         N = 0
 
         for _ in range(num_epochs):
@@ -390,7 +390,7 @@ if __name__ == "__main__":
                 output = model.forward(data)
                 loss_class = loss_function(output, gt)
 
-                loss = loss_class + loss_reg(output) * weight_reg
+                loss = loss_class #+ loss_reg(output) * weight_reg
 
                 loss.backward()
                 optimizer.step()

@@ -19,109 +19,96 @@ from sklearn.neighbors import KNeighborsClassifier
 import matplotlib.pyplot as plt
 from sklearn import svm
 from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
 
 
 def main():
-    methods = {'1NN': None,
-               'SA + 1NN': SA.SA(),
+    methods = {'1NN': KNeighborsClassifier(1),
+               #'SA + 1NN': SA.SA(),
                #'SA + 5NN': SA.SA(clf=KNeighborsClassifier(5)),
                #'SA + SVM': SA.SA(clf=svm.SVC(gamma=2, C=1)),
                #'SA + DT': SA.SA(clf=DecisionTreeClassifier(max_depth=5)),
-               #'PCA_src + 1NN': SA.PCASource(),
+               #'PCA_src + 1NN': SA.PCASource(options={'subspace_dim': 10}),
                #'PCA_src + SVM': SA.PCASource(clf=svm.SVC(gamma=2, C=1)),
                #'PCA_src + DT': SA.PCASource(clf=DecisionTreeClassifier(max_depth=5)),
                #'PCA_tgt + 1NN': SA.PCATarget(),
                #'PCA_tgt + SVM': SA.PCATarget(clf=svm.SVC(gamma=2, C=1)),
                #'PCA_tgt + DT': SA.PCATarget(clf=DecisionTreeClassifier(max_depth=5)),
-               'GFK + 1NN': GFK.GFK(),
+               #'GFK + 1NN': GFK.GFK(),
                #'GFK + 5NN': GFK.GFK(clf=KNeighborsClassifier(5)),
                #'GFK + SVM': GFK.GFK(clf=svm.SVC(gamma=2, C=1)),
                #'GFK + DT': GFK.GFK(clf=DecisionTreeClassifier(max_depth=5)),
-               'JGSA + 1NN': JGSA.JGSA(),
-               'JGSA + 5NN': JGSA.JGSA(clf=KNeighborsClassifier(5)),
-               #'JGSA + SVM': JGSA.JGSA(clf=svm.SVC(gamma=2, C=1)),
+               #'JGSA + 1NN': JGSA.JGSA(),
+               #'JGSA + 5NN': JGSA.JGSA(clf=KNeighborsClassifier(5)),
+               #'JGSA + SVM': JGSA.JGSA(clf=svm.SVC(gamma='scale', C=0.1)),
                #'JGSA + DT': JGSA.JGSA(clf=DecisionTreeClassifier(max_depth=5)),
-               'MEDA + 1NN': MEDA.MEDA(),
-               'MEDA + SVM': MEDA.MEDA(clf=svm.SVC(gamma='scale', C=2), options={'rho': 1.0, 'eta': .1, 'gamma': 1,
-                                                                                 'lamb': 8, 'mu': .7}),
-               'MEDA + MLP': MEDA.MEDA(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(15, ), random_state=1,
-                                                         solver='sgd', max_iter=1000), options={'rho': 1.0, 'eta': .1,
-                                                                                               'gamma': 1, 'lamb': 8,
-                                                                                               'mu': .7})
+               'MEDA + 1NN': MEDA.MEDA(options={'mu': .7, 't': 20, 'lamb': 0, 'gamma': 1.6, 'rho': 0}),
+               'MEDA + tune + 1NN': MEDA.MEDA(options={'mu': .7, 't': 10, 'lamb': 5, 'gamma': 1.6, 'rho': 10}),
                }
+
     results = pd.DataFrame(columns=methods.keys())
-    normalize_dataset = False
-    seed = 51
-    normalize_sep = False
-    balance = False
-    use_all_target = True
-    use_batch2 = False
 
-    dataset_s1 = chemical_loader.ChemicalLoader(1, train=True, normalise=normalize_dataset, balance=balance, seed=seed)
-    dataset_s2 = chemical_loader.ChemicalLoader(2, train=True, normalise=normalize_dataset, balance=balance, seed=seed)
+    train_test_split = False
 
-    if use_batch2:
-        data_s = np.vstack((dataset_s1.data, dataset_s2.data))
-        gt_s = np.hstack((dataset_s1.gt, dataset_s2.gt))
-        first_tgt_domain = 2
-    else:
-        data_s = dataset_s1.data
-        gt_s = dataset_s1.gt
-        first_tgt_domain = 1
+    dataset_s = chemical_loader.ChemicalLoader(1, train=None, normalise=False, balance=False, seed=None)
+    data_s = dataset_s.data
+    gt_s = dataset_s.gt
 
-    data_t_train = np.zeros((0, 128))
+    # scaling for 1NN baseline method
+    scaler = StandardScaler()
+    scaler.fit(data_s)
+    data_s_norm = scaler.transform(data_s)
+    methods['1NN'].fit(data_s_norm, gt_s)
 
-    for tgt in range(1, 11):
-        dataset_t_train = chemical_loader.ChemicalLoader(tgt, train=True, normalise=normalize_dataset, balance=balance,
-                                                         seed=seed)
-        dataset_t_eval = chemical_loader.ChemicalLoader(tgt, train=False, normalise=normalize_dataset, balance=balance,
-                                                        seed=seed)
+    for tgt in range(2, 11):
+        dataset_t = chemical_loader.ChemicalLoader(tgt, train=True, normalise=False, balance=False, seed=None)
 
-        if use_all_target:
-            data_t_train = np.vstack((data_t_train, dataset_t_train.data))
+        if train_test_split:
+            data_t_train = dataset_t.data_train
+            data_t_test = dataset_t.data_test
+            gt_t_test = dataset_t.gt_test
+            gt_t_train = dataset_t.gt_train
         else:
-            data_t_train = dataset_t_train.data
-        data_t_eval = dataset_t_eval.data
+            data_t_train = dataset_t.data
+            data_t_test = dataset_t.data
+            gt_t_test = dataset_t.gt
 
         results = results.append(pd.DataFrame(index=['batch' + str(tgt)]))
-        for method_name in methods:
-            if methods[method_name] is None:
-                # TODO: Normalise for this
-                clf = KNeighborsClassifier(1)
-                clf.fit(data_s, gt_s)
-                predict_t = clf.predict(dataset_t_eval.data)
 
-            elif tgt > first_tgt_domain:
+        for method_name in methods.keys():
+            if method_name == '1NN':
+                scaler.fit(data_t_train)
+                predictions = methods[method_name].predict(scaler.transform(data_t_test))
+            else:
+                # scaler.fit(data_t_train)
+                data_s_norm2 = methods[method_name].normalise_features({'fts': data_s})
+                # data_t_train_norm = scaler.transform(data_t_train)
+                data_t_train_norm = methods[method_name].normalise_features({'fts': data_t_train})
+                # data_t_test_norm = scaler.transform(data_t_test)
+                data_t_test_norm = methods[method_name].apply_normalisation({'fts': data_t_test})
+                methods[method_name].fit(data_s_norm2, np.expand_dims(gt_s, 1), data_t_train_norm)
+                predictions = methods[method_name].inference(data_t_test_norm)
 
-                if normalize_sep:
-                    src_norm = methods[method_name].normalise_features({'fts': data_s})
-                    tgt_norm_train = methods[method_name].normalise_features({'fts': data_t_train.data})
-                    tgt_norm_eval = methods[method_name].normalise_features({'fts': data_t_eval.data})
-                else:
-                    all_normalised = methods[method_name].normalise_features({'fts': np.vstack((data_s,
-                                                                                                data_t_eval.data,
-                                                                                                data_t_train.data))})
-                    src_norm = all_normalised[:data_s.shape[0]]
-                    tgt_norm_eval = all_normalised[data_s.shape[0]:(data_s.shape[0] + dataset_t_eval.data.shape[0])]
-                    tgt_norm_train = all_normalised[(data_s.shape[0] + dataset_t_eval.data.shape[0]):]
+            acc = (predictions == gt_t_test).sum() / len(predictions)
+            print('batch1 -> batch' + str(tgt) + ' using ' + method_name + ': ' + str(round(acc, 4)))
 
-                methods[method_name].fit(src_norm, np.expand_dims(gt_s, 1), tgt_norm_train)
-                predict_t = methods[method_name].inference(tgt_norm_eval)
-
-            acc = (predict_t == dataset_t_eval.gt).sum() / len(dataset_t_eval)
-            print('batch1+2 --> batch' + str(tgt) + ' using ' + method_name + ' accuracy: ' + str(round(acc, 4)))
             results[method_name]['batch' + str(tgt)] = round(acc, 4)
 
-    results.to_csv('../eval/results/chemical/classical' + '_normalise' * normalize_dataset + '_normalise_sep'
-                   * normalize_sep + '_balance' * balance + '_alltarget' * use_all_target + '.csv', ';')
+    # Compute average performance
+    results = results.append(pd.DataFrame(index=['Average']))
+    for method_name in results.keys():
+        avg = (results[method_name].sum(axis=0, skipna=True)) / 9
+        results[method_name]['Average'] = avg
+        print('Average of ' + method_name + ' ' + str(round(avg, 4)))
+
+    results.to_csv('../eval/results/chemical/classical' + '.csv', ';')
 
     # plot the results
     for method_name in methods:
         plt.plot(results[method_name], label=method_name)
     plt.legend()
     plt.axis([0, 10, 0, 1])
-    plt.savefig('../eval/results/chemical/classical' + '_normalise' * normalize_dataset + '_normalise_sep' *
-                normalize_sep + '_balance' * balance + '_alltarget' * use_all_target + '.png')
+    plt.savefig('../eval/results/chemical/classical' + '.png')
 
 
 if __name__ == "__main__":

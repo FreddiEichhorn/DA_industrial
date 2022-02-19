@@ -145,7 +145,7 @@ def main():
                     break
                 loss.backward()
                 optimizer.step()
-                print(loss)
+                #print(loss)
         acc = evaluate_model(model, dataloader_t_eval, scaler, device)
         print('batch1+2 --> batch' + str(tgt) + ' accuracy: ' + str(round(acc, 4)))
         results['batch1+2']['batch' + str(tgt)] = round(acc, 4)
