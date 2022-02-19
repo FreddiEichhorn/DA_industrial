@@ -61,6 +61,8 @@ class MEDA:
         self.beta = None
         self.clf = clf
         self.min_classes = None
+        self.mean = None
+        self.std = None
 
     @staticmethod
     def proxy_a_distance(source_x, target_x):
@@ -135,14 +137,33 @@ class MEDA:
 
             return k
 
-    @staticmethod
-    def normalise_features(h):
+    def normalise_features(self, h):
         fts = h["fts"]
-        fts = fts / (np.expand_dims(np.sum(fts, 1), 1) + 1e-9)
+        #fts = fts / (np.expand_dims(np.sum(fts, 1), 1) + 1e-9)
         mean = np.mean(fts, 0)
         std = np.std(fts, 0)
         features = (fts - mean) / (std + 1e-9)
+        self.mean = mean
+        self.std = std
         return features
+
+    def apply_normalisation(self, h):
+        fts = h["fts"]
+        #fts = fts / (np.expand_dims(np.sum(fts, 1), 1) + 1e-9)
+        return (fts - self.mean) / (self.std + 1e-9)
+
+    def lapgraph(self, x, num_neighbors=10):
+        # compute cosine distance of all samples
+        w = x.T @ x / np.linalg.norm(x, 2, 0) ** 2
+        sim2 = np.round(w.copy(), 6)
+        neighbor_mask = np.zeros_like(w)
+        for i in range(num_neighbors):
+            nth_neighbor = np.logical_or(sim2 == np.max(sim2, 0), (sim2 == np.max(sim2, 0)).T)
+            sim2[nth_neighbor] = -1
+        w = w * neighbor_mask
+
+        l = np.diag(np.sum(w, 1)) - w
+        return l
 
     def fit(self, xs, ys, xt):
         """
@@ -178,7 +199,7 @@ class MEDA:
         yy[0, 1:] = 0
 
         self.x /= np.linalg.norm(self.x, axis=0) + 1e-9
-        l = 0  # Graph Laplacian is on the way...
+        l = self.lapgraph(self.x)  # Graph Laplacian is on the way...
         if self.clf is None:
             self.clf = KNeighborsClassifier(n_neighbors=1)
         self.clf.fit(self.x[:, :n_source].T, ys.ravel())
@@ -229,15 +250,15 @@ def main():
                 tar = 'data/' + domains[j] + '_SURF_L10.mat'
                 src_domain = scipy.io.loadmat(src)
                 tar_domain = scipy.io.loadmat(tar)
-                xs = MEDA.normalise_features(src_domain)
-                xt = MEDA.normalise_features(tar_domain)
+                classifier = MEDA(options={'mu': .7})
+                xs = classifier.normalise_features(src_domain)
+                xt = classifier.normalise_features(tar_domain)
                 train_test_split = np.random.choice([True, False], size=xt.shape[0], p=[.9, .1])
                 xt_train = xt[train_test_split]
                 xt_eval = xt[np.logical_not(train_test_split)]
                 ys, yt = src_domain['labels'], tar_domain['labels']
                 yt_train = yt[train_test_split]
                 yt_eval = yt[np.logical_not(train_test_split)]
-                classifier = MEDA()
                 x, beta, sq_g, cls1 = classifier.fit(xs, ys, xt_train)
                 acc = np.mean(cls1 == yt_train.ravel())
                 print(domains[i] + "-->" + domains[j] + " on training target domain data: " + str(acc))

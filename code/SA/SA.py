@@ -53,7 +53,10 @@ class PCASource:
     def __init__(self, options=None, clf=None):
         if options is None:
             options = {}
-
+        if 'subspace_dim' in options.keys():
+            self.subspace_dim = options['subspace_dim']
+        else:
+            self.subspace_dim = 50
         self.Us = None
         self.clf = clf
 
@@ -75,7 +78,7 @@ class PCASource:
         return sorted_eigenvectors[:, 0:n_components]
 
     def fit(self, xs, ys, xt):
-        self.Us = self.pca(xs, 50)
+        self.Us = self.pca(xs, self.subspace_dim)
         if self.clf is None:
             self.clf = KNeighborsClassifier(1)
         self.clf.fit(xs @ self.Us, ys[:, 0])

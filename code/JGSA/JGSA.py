@@ -43,16 +43,26 @@ class JGSA:
         self.clf = clf
         self.transf_t = None
         self.transf_s = None
+        self.divider = None
+        self.mean = None
+        self.std = None
 
-    @staticmethod
-    def normalise_features(h):
+    def normalise_features(self, h):
         """Same normalization Zhang et al use in their implementation. It should be noted that the last line of this
         method has considerable influence on accuracy"""
         fts = h["fts"]
-        fts = fts / (np.expand_dims(np.sum(fts, 1), 1) + 1e-9)
+        #fts = fts / (np.expand_dims(np.sum(fts, 1), 1) + 1e-9)
         mean = np.mean(fts, 0)
-        std = np.std(fts, 0)
+        std = np.std(fts, 0)#
+        self.mean = mean
+        self.std = std
         features = (fts - mean) / (std + 1e-9)
+        features = features / np.expand_dims(np.sqrt(np.sum(features ** 2, 1)), 1)
+        return features
+
+    def apply_normalisation(self, h):
+        fts = h["fts"]
+        features = (fts - self.mean) / (self.std + 1e-9)
         features = features / np.expand_dims(np.sqrt(np.sum(features ** 2, 1)), 1)
         return features
 
