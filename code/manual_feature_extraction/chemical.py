@@ -42,17 +42,24 @@ def main():
                #'JGSA + 5NN': JGSA.JGSA(clf=KNeighborsClassifier(5)),
                #'JGSA + SVM': JGSA.JGSA(clf=svm.SVC(gamma='scale', C=0.1)),
                #'JGSA + DT': JGSA.JGSA(clf=DecisionTreeClassifier(max_depth=5)),
-               'MEDA + 1NN': MEDA.MEDA(options={'mu': .7, 't': 20, 'lamb': 0, 'gamma': 1.6, 'rho': 0}),
-               'MEDA + tune + 1NN': MEDA.MEDA(options={'mu': .7, 't': 10, 'lamb': 5, 'gamma': 1.6, 'rho': 10}),
+               #'MEDA + 1NN': MEDA.MEDA(options={'mu': .7, 't': 20, 'lamb': 0.1, 'gamma': 1.6, 'rho': 0, 'eta': .3}),
+               'MEDA + SVM': MEDA.MEDA(clf=svm.SVC(gamma='auto', C=2),
+                                       options={'mu': .7, 't': 20, 'lamb': 0.1, 'gamma': 1.7, 'rho': 0, 'eta': .3}),
+               'MEDA + tune + SVM': MEDA.MEDA(clf=svm.SVC(gamma='auto', C=2),
+                                              options={'mu': .7, 't': 20, 'lamb': 0.1, 'gamma': 1.7, 'rho': 1,
+                                                       'eta': .3, 'num_neighbors': 3}),
                }
 
     results = pd.DataFrame(columns=methods.keys())
 
     train_test_split = False
+    use_all_target = False
+    balance = False
 
-    dataset_s = chemical_loader.ChemicalLoader(1, train=None, normalise=False, balance=False, seed=None)
+    dataset_s = chemical_loader.ChemicalLoader(1, train=None, normalise=False, balance=balance, seed=None)
     data_s = dataset_s.data
     gt_s = dataset_s.gt
+    data_t_train = np.zeros((0, 128))
 
     # scaling for 1NN baseline method
     scaler = StandardScaler()
@@ -61,15 +68,21 @@ def main():
     methods['1NN'].fit(data_s_norm, gt_s)
 
     for tgt in range(2, 11):
-        dataset_t = chemical_loader.ChemicalLoader(tgt, train=True, normalise=False, balance=False, seed=None)
+        dataset_t = chemical_loader.ChemicalLoader(tgt, train=True, normalise=False, balance=balance, seed=None)
 
         if train_test_split:
-            data_t_train = dataset_t.data_train
+            if use_all_target:
+                data_t_train = np.vstack((dataset_t.data_train, data_t_train))
+            else:
+                data_t_train = dataset_t.data_train
             data_t_test = dataset_t.data_test
             gt_t_test = dataset_t.gt_test
             gt_t_train = dataset_t.gt_train
         else:
-            data_t_train = dataset_t.data
+            if use_all_target:
+                data_t_train = np.vstack((dataset_t.data, data_t_train))
+            else:
+                data_t_train = dataset_t.data
             data_t_test = dataset_t.data
             gt_t_test = dataset_t.gt
 

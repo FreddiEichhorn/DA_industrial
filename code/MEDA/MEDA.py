@@ -36,7 +36,7 @@ class MEDA:
         if 'rho' in options.keys():
             self.rho = options['rho']
         else:
-            self.rho = 1.0
+            self.rho = 0
 
         if 'eta' in options.keys():
             self.eta = options['eta']
@@ -54,6 +54,11 @@ class MEDA:
         else:
             self.mu = .7
             self.est_mu = True
+
+        if 'num_neighbors' in options.keys():
+            self.num_neighbors = options['num_neighbors']
+        else:
+            self.num_neighbors = 5
 
         # These are estimated using the fit method
         self.sq_g = None
@@ -152,17 +157,31 @@ class MEDA:
         #fts = fts / (np.expand_dims(np.sum(fts, 1), 1) + 1e-9)
         return (fts - self.mean) / (self.std + 1e-9)
 
-    def lapgraph(self, x, num_neighbors=10):
+    def lapgraph(self, x, source_len):
+        if self.num_neighbors < 1:
+            num_neighbors = int(self.num_neighbors * x.shape[1])
+        else:
+            num_neighbors = self.num_neighbors
+        target_len = x.shape[1] - source_len
         # compute cosine distance of all samples
         w = x.T @ x / np.linalg.norm(x, 2, 0) ** 2
-        sim2 = np.round(w.copy(), 6)
+        # make sure no structure between source and target domain is preserved
+        w[source_len:, :source_len] = -1
+        w[:source_len, source_len:] = -1
+
+        sim2 = np.round(w.copy(), 10)  # - 2 * np.eye(w.shape[0])
+
         neighbor_mask = np.zeros_like(w)
         for i in range(num_neighbors):
             nth_neighbor = np.logical_or(sim2 == np.max(sim2, 0), (sim2 == np.max(sim2, 0)).T)
             sim2[nth_neighbor] = -1
+            neighbor_mask += nth_neighbor
         w = w * neighbor_mask
 
-        l = np.diag(np.sum(w, 1)) - w
+        d = np.sum(w, 1)
+        inv_sqrt_d = np.diag(np.sqrt(1 / (d + 1e-9)))
+        #l = np.diag(np.sum(w, 1)) - w
+        l = np.eye(w.shape[0]) - inv_sqrt_d @ w @ inv_sqrt_d
         return l
 
     def fit(self, xs, ys, xt):
@@ -199,7 +218,7 @@ class MEDA:
         yy[0, 1:] = 0
 
         self.x /= np.linalg.norm(self.x, axis=0) + 1e-9
-        l = self.lapgraph(self.x)  # Graph Laplacian is on the way...
+        l = self.lapgraph(self.x, xs_new.shape[1])  # Graph Laplacian is on the way...
         if self.clf is None:
             self.clf = KNeighborsClassifier(n_neighbors=1)
         self.clf.fit(self.x[:, :n_source].T, ys.ravel())
@@ -250,7 +269,8 @@ def main():
                 tar = 'data/' + domains[j] + '_SURF_L10.mat'
                 src_domain = scipy.io.loadmat(src)
                 tar_domain = scipy.io.loadmat(tar)
-                classifier = MEDA(options={'mu': .7})
+                classifier = MEDA(options={'mu': .7, 'rho': 0})
+                classifier2 = MEDA(options={'mu': .7, 'rho': .2, 'num_neighbors': 5})
                 xs = classifier.normalise_features(src_domain)
                 xt = classifier.normalise_features(tar_domain)
                 train_test_split = np.random.choice([True, False], size=xt.shape[0], p=[.9, .1])
@@ -261,11 +281,15 @@ def main():
                 yt_eval = yt[np.logical_not(train_test_split)]
                 x, beta, sq_g, cls1 = classifier.fit(xs, ys, xt_train)
                 acc = np.mean(cls1 == yt_train.ravel())
-                print(domains[i] + "-->" + domains[j] + " on training target domain data: " + str(acc))
+                print(domains[i] + "-->" + domains[j] + " on training target domain data of clf1: " + str(acc))
 
-                cls2 = classifier.inference(xt_eval)
-                acc = np.mean(cls2 == yt_eval.ravel())
-                print(domains[i] + "-->" + domains[j] + " on evaluation target domain data: " + str(acc))
+                x, beta, sq_g, cls1 = classifier2.fit(xs, ys, xt_train)
+                acc = np.mean(cls1 == yt_train.ravel())
+                print(domains[i] + "-->" + domains[j] + " on training target domain data of clf2: " + str(acc))
+
+                # cls2 = classifier.inference(xt_eval)
+                # acc = np.mean(cls2 == yt_eval.ravel())
+                # print(domains[i] + "-->" + domains[j] + " on evaluation target domain data: " + str(acc))
 
 
 if __name__ == '__main__':
