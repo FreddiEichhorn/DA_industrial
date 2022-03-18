@@ -23,14 +23,46 @@ import matplotlib.pyplot as plt
 from sklearn import svm
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import ConfusionMatrixDisplay
+
+
+def balance_dataset(data, gt, seed=None):
+    data = data.copy()
+    gt = gt.copy()
+
+    # Find class with most samples
+    largest_class = 0
+    for i in range(int(max(gt[:, 0]) + 1)):
+        if (gt == i).sum() > largest_class:
+            largest_class = (gt == i).sum()
+
+    # oversample all classes smaller than largest
+    data2 = np.zeros((0, data.shape[1]))
+    gt_2 = np.zeros((0, 1))
+    for cls in range(int(max(gt[:, 0]) + 1)):
+        data_cls = data[gt[:, 0] == cls]
+
+        while data_cls.shape[0] * 2 < largest_class:
+            data_cls = np.vstack((data_cls, data_cls))
+
+        p = (largest_class - data_cls.shape[0]) / data_cls.shape[0]
+        if seed is not None:
+            np.random.seed(seed)
+        choice_arr = np.random.choice(a=[False, True], size=data_cls.shape[0], p=[1 - p, p])
+        data_cls = np.vstack((data_cls, data_cls[choice_arr]))
+        data2 = np.vstack((data2, data_cls))
+        gt_2 = np.vstack((gt_2, np.ones((data_cls.shape[0], 1)) * cls))
+    balanced_data = data2
+    balanced_gt = gt_2
+    return balanced_data, balanced_gt
 
 
 def main():
     methods = {'1NN': None,
                #'SA + 1NN': SA.SA(),
                #'SA + 5NN': SA.SA(clf=KNeighborsClassifier(5)),
-               'SA + MLP': SA.SA(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(100, 15), random_state=1,
-                                                   solver='sgd', max_iter=600)),
+               #'SA + MLP': SA.SA(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(100, 15), random_state=1,
+               #                                    solver='sgd', max_iter=600)),
                #'SA + SVM': SA.SA(clf=svm.SVC(gamma=2, C=1)),
                #'SA + DT': SA.SA(clf=DecisionTreeClassifier(max_depth=5)),
                #'PCA_src + 1NN': SA.PCASource(),
@@ -41,21 +73,21 @@ def main():
                #'PCA_tgt + DT': SA.PCATarget(clf=DecisionTreeClassifier(max_depth=5)),
                #'GFK + 1NN': GFK.GFK(),
                #'GFK + 5NN': GFK.GFK(clf=KNeighborsClassifier(5)),
-               'GFK + MLP': GFK.GFK(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(100, 15), random_state=1,
-                                                      solver='sgd', max_iter=600)),
+               #'GFK + MLP': GFK.GFK(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(100, 15), random_state=1,
+               #                                       solver='sgd', max_iter=600)),
                #'GFK + SVM': GFK.GFK(clf=svm.SVC(gamma=2, C=1)),
                #'GFK + DT': GFK.GFK(clf=DecisionTreeClassifier(max_depth=5)),
                #'JGSA + 1NN': JGSA.JGSA(),
-               'JGSA + 5NN': JGSA.JGSA(clf=KNeighborsClassifier(5)),
+               #'JGSA + 5NN': JGSA.JGSA(clf=KNeighborsClassifier(5)),
                #'JGSA + MLP': JGSA.JGSA(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(15,), random_state=1,
                                                          #solver='sgd', max_iter=400)),
                #'JGSA + SVM': JGSA.JGSA(clf=svm.SVC(gamma=2, C=1)),
                #'JGSA + DT': JGSA.JGSA(clf=DecisionTreeClassifier(max_depth=5)),
                #'MEDA + 1NN': MEDA.MEDA(),
                #'MEDA + 5NN': MEDA.MEDA(clf=KNeighborsClassifier(5)),
-               'MEDA + SVM': MEDA.MEDA(clf=svm.SVC(gamma=2, C=1)),
-               'MEDA + MLP': MEDA.MEDA(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(100, 15), random_state=1,
-                                                         solver='sgd', max_iter=600))
+               'MEDA + SVM': MEDA.MEDA(clf=svm.SVC(gamma=2, C=1), options={'rho': .0, 'mu': 0.7}),
+               #'MEDA + MLP': MEDA.MEDA(clf=MLPClassifier(alpha=1e-05, hidden_layer_sizes=(100, 15), random_state=1,
+               #                                          solver='sgd', max_iter=600))
                }
 
     results = pd.DataFrame(columns=methods.keys())
@@ -63,7 +95,7 @@ def main():
     normalize_sep = False
     seed = 42
     balance = True
-    last_x = 3000
+    last_x = 15000
 
     dataset_s1 = chemical_loader.ChemicalLoader(1, train=True, normalise=normalize_dataset, balance=balance, seed=seed)
     dataset_s2 = chemical_loader.ChemicalLoader(2, train=True, normalise=normalize_dataset, balance=balance, seed=seed)
@@ -110,6 +142,8 @@ def main():
                 data_s[method_name] = np.vstack((dataset_t_train.data, data_s[method_name]))
                 gt_s[method_name] = np.hstack((methods[method_name].inference(tgt_norm_train), gt_s[method_name]))
 
+            ConfusionMatrixDisplay.from_predictions(predict_t, dataset_t_eval.gt)
+            plt.savefig('../eval/results/chemical/confusion_matrix_batch' + str(tgt) + '.png')
             acc = (predict_t == dataset_t_eval.gt).sum() / len(dataset_t_eval)
             print('batch1+2 --> batch' + str(tgt) + ' using ' + method_name + ' accuracy: ' + str(round(acc, 4)))
             results[method_name]['batch' + str(tgt)] = round(acc, 4)

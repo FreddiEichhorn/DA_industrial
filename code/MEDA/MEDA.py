@@ -34,7 +34,7 @@ class MEDA:
         if 'rho' in options.keys():
             self.rho = options['rho']
         else:
-            self.rho = 1.0
+            self.rho = 0.0
 
         if 'eta' in options.keys():
             self.eta = options['eta']
@@ -45,6 +45,16 @@ class MEDA:
             self.lamb = options['lamb']
         else:
             self.lamb = 10
+
+        if 'num_neighbors' in options.keys():
+            self.num_neighbors = options['num_neighbors']
+        else:
+            self.num_neighbors = 5
+
+        if 'mu' in options.keys():
+            self.mu = options['mu']
+        else:
+            self.mu = 0.7
 
         # These are estimated using the fit method
         self.sq_g = None
@@ -97,6 +107,33 @@ class MEDA:
         features = (fts - mean) / (std + 1e-9)
         return features
 
+    def lapgraph(self, x, source_len):
+        if self.num_neighbors < 1:
+            num_neighbors = int(self.num_neighbors * x.shape[1])
+        else:
+            num_neighbors = self.num_neighbors
+        target_len = x.shape[1] - source_len
+        # compute cosine distance of all samples
+        w = x.T @ x / np.linalg.norm(x, 2, 0) ** 2
+        # make sure no structure between source and target domain is preserved
+        w[source_len:, :source_len] = -1
+        w[:source_len, source_len:] = -1
+
+        sim2 = np.round(w.copy(), 10)  # - 2 * np.eye(w.shape[0])
+
+        neighbor_mask = np.zeros_like(w)
+        for i in range(num_neighbors):
+            nth_neighbor = np.logical_or(sim2 == np.max(sim2, 0), (sim2 == np.max(sim2, 0)).T)
+            sim2[nth_neighbor] = -1
+            neighbor_mask += nth_neighbor
+        w = w * neighbor_mask
+
+        d = np.sum(w, 1)
+        inv_sqrt_d = np.diag(np.sqrt(1 / (d + 1e-9)))
+        # l = np.diag(np.sum(w, 1)) - w
+        l = np.eye(w.shape[0]) - inv_sqrt_d @ w @ inv_sqrt_d
+        return l
+
     def fit(self, xs, ys, xt):
         """
         Transform and Predict
@@ -131,7 +168,7 @@ class MEDA:
         yy[0, 1:] = 0
 
         self.x /= np.linalg.norm(self.x, axis=0) + 1e-9
-        l = 0  # Graph Laplacian is on the way...
+        l = self.lapgraph(self.x, xs_new.shape[1])
         if self.clf is None:
             self.clf = KNeighborsClassifier(n_neighbors=1)
         self.clf.fit(self.x[:, :n_source].T, ys.ravel())
@@ -140,7 +177,6 @@ class MEDA:
         E = np.diagflat(np.vstack((np.ones((n_source, 1)), np.zeros((n_target, 1)))))
         for iteration in range(1, self.t + 1):
             # estimating mu keeps throwing warnings and thus we just fix mu
-            mu = .7
             e = np.vstack((1 / n_source * np.ones((n_source, 1)), -1 / n_target * np.ones((n_target, 1))))
             m = e * e.T * n_classes
             n = 0
@@ -152,7 +188,7 @@ class MEDA:
                 e[tuple(inds)] = -1 / (len(cls[np.where(cls == c)]) + 1e-9)
                 e[np.isinf(e)] = 0
                 n += np.dot(e, e.T)
-            m = (1 - mu) * m + mu * n
+            m = (1 - self.mu) * m + self.mu * n
             m /= np.linalg.norm(m, 'fro') + 1e-9
             left = np.dot(E + self.lamb * m + self.rho * l, k) + self.eta * np.eye(n_source+n_target, n_source+n_target)
             self.beta = np.dot(np.linalg.inv(left), np.dot(E, yy))
