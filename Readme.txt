@@ -1,3 +1,10 @@
+I used this repo for my masters thesis on domain adaptation in industrial contexts. For running
+the scripts you will need to download the following datasets:
+
+CWRU: https://engineering.case.edu/bearingdatacenter/12k-drive-end-bearing-fault-data
+UCSD: https://archive.ics.uci.edu/ml/datasets/gas+sensor+array+drift+dataset
+Office+Caltech: https://mega.nz/folder/AaJTGIzD#XHM2XMsSd9V-ljVi0EtvFg
+
 Relevant scripts are:
 
 1. code/supervised_only/CWRU_extended_task.py : Run in order to to train and evaluate a model to classify the 10 category CWRU task
@@ -17,3 +24,6 @@ Relevant scripts are:
 
 8. code/manual_feature_extraction/chemical.py to reproduce results of classical methods on UCSD in the sequential problem
     setup
+
+The repo also includes an implementation of generalised singular value decomposition using only
+scipy as a dependency.
